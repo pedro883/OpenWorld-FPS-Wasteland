@@ -19,6 +19,12 @@ import { TerrainStreamer } from '../world/streamer';
 import { PoiBuilder } from '../world/poiBuilder';
 import { DayNightCycle } from '../world/daynight';
 import { Water } from '../world/water';
+import { Navigator } from '../ai/navigation';
+import { CoverFinder } from '../ai/cover';
+import { Squad } from '../ai/squad';
+import { Npc, type SkillLevel } from '../entities/npc';
+import { AiGizmos } from '../debug/aiGizmos';
+import aiConfig from '../../config/ai.json';
 
 /**
  * The open world: streamed terrain, three POIs joined by roads, a day/night
@@ -46,6 +52,12 @@ export class WorldScene implements Scene {
   private pointerHint!: HTMLDivElement;
 
   private readonly dummies: TargetDummy[] = [];
+  private navigator!: Navigator;
+  private coverFinder!: CoverFinder;
+  private gizmos!: AiGizmos;
+  private readonly squads: Squad[] = [];
+  private readonly npcs: Npc[] = [];
+  private gizmosOn = false;
   private readonly lastLook = { x: 0, y: 0 };
   private hudVisible = true;
   private lastHit = 'nenhum';
@@ -113,6 +125,14 @@ export class WorldScene implements Scene {
     await this.pois.buildAll();
     await this.spawnPatrol();
 
+    this.navigator = new Navigator(ctx.physics, this.terrain);
+    this.coverFinder = new CoverFinder(ctx.physics, this.terrain);
+    this.gizmos = new AiGizmos(ctx.render.scene);
+    await this.spawnSquads();
+
+    // A round passing close to an agent is what suppression is made of.
+    this.ballistics.onPass = (from, to, shooter) => this.applySuppression(from, to, shooter);
+
     this.registerDebug();
   }
 
@@ -134,6 +154,68 @@ export class WorldScene implements Scene {
           i,
         ),
       );
+    }
+  }
+
+  /** Two fireteams: one holding the military POI, one patrolling the village. */
+  private async spawnSquads(): Promise<void> {
+    const deps = {
+      physics: this.ctx.physics,
+      scene: this.ctx.render.scene,
+      ballistics: this.ballistics,
+      navigator: this.navigator,
+      cover: this.coverFinder,
+    };
+    const weapons = aiConfig.spawn.weaponsBySkill as Record<string, string[]>;
+    const plans: Array<{ poiIndex: number; size: number; skill: SkillLevel }> = [
+      { poiIndex: 1, size: 6, skill: 'veteran' },
+      { poiIndex: 0, size: 5, skill: 'regular' },
+    ];
+
+    for (let s = 0; s < plans.length; s++) {
+      const plan = plans[s]!;
+      const poi = this.layout.pois[plan.poiIndex]!;
+      const squad = new Squad(s + 1);
+      for (let i = 0; i < plan.size; i++) {
+        const angle = (i / plan.size) * Math.PI * 2;
+        const radius = poi.radius * 0.55;
+        const x = poi.x + Math.cos(angle) * radius;
+        const z = poi.z + Math.sin(angle) * radius;
+        const list = weapons[plan.skill] ?? ['rifle_m4x'];
+        const npc = await Npc.spawn(
+          deps,
+          new THREE.Vector3(x, this.terrain.heightAt(x, z), z),
+          plan.skill,
+          list[i % list.length]!,
+          i,
+        );
+        npc.squad = squad;
+        squad.add(npc);
+        this.npcs.push(npc);
+      }
+      this.squads.push(squad);
+    }
+  }
+
+  /**
+   * Near-miss detection against the round's path segment for this tick. Using
+   * the segment rather than its endpoint matters because a bullet crosses ~14 m
+   * per tick and would otherwise skip past everyone it nearly hit.
+   */
+  private applySuppression(from: THREE.Vector3, to: THREE.Vector3, shooter: unknown): void {
+    const segment = to.clone().sub(from);
+    const lengthSq = segment.lengthSq();
+    if (lengthSq < 1e-6) return;
+    const radius = aiConfig.suppression.nearMissRadiusMeters;
+    const relative = new THREE.Vector3();
+    for (const npc of this.npcs) {
+      // The muzzle sits inside the shooter, so without this every agent
+      // suppresses itself the instant it pulls the trigger.
+      if (!npc.isAlive || npc === shooter) continue;
+      relative.set(npc.position.x, npc.position.y + 1.2, npc.position.z).sub(from);
+      const t = Math.max(0, Math.min(1, relative.dot(segment) / lengthSq));
+      const closest = segment.clone().multiplyScalar(t).sub(relative);
+      if (closest.length() <= radius) npc.registerNearMiss();
     }
   }
 
@@ -160,6 +242,16 @@ export class WorldScene implements Scene {
     });
     debugOverlay.registerToggle('KeyP', 'pausar ciclo dia/noite', () => this.cycle.paused, (v) => {
       this.cycle.paused = v;
+    });
+    debugOverlay.registerSection('ia', () => {
+      const alive = this.npcs.filter((n) => n.isAlive).length;
+      return [`agentes ${alive}/${this.npcs.length}`, ...this.squads.map((s) => s.debugText)].join(
+        '\n',
+      );
+    });
+    debugOverlay.registerToggle('KeyG', 'gizmos de IA', () => this.gizmosOn, (v) => {
+      this.gizmosOn = v;
+      this.gizmos.setEnabled(v);
     });
   }
 
@@ -214,6 +306,43 @@ export class WorldScene implements Scene {
 
     this.water.applyDrowning(dt, eye.y, this.player.health);
     this.cycle.update(dt);
+    this.updateAi(dt, recoil !== null);
+  }
+
+  /** Feeds every agent its view of the world, then ticks squads and agents. */
+  private updateAi(dt: number, playerFired: boolean): void {
+    const eye = this.player.controller.eyePosition;
+    const weapon = this.loadout.current;
+    const target = {
+      position: this.player.position.clone(),
+      eyePosition: new THREE.Vector3(eye.x, eye.y, eye.z),
+      stance: this.player.stance,
+      speed: this.player.speed,
+      isSprinting: this.player.speed > 5,
+      firing: playerFired,
+      firingSuppressed: weapon.def.suppressed,
+      isAlive: this.player.health.alive,
+    };
+    const visibility = this.cycle.visibility;
+
+    // A shot is a sound event carrying the weapon's own noise radius, so a
+    // suppressor genuinely changes who comes looking.
+    if (playerFired) {
+      for (const npc of this.npcs) {
+        if (npc.isAlive) npc.hearGunshot(target.eyePosition, weapon.def.noiseRadiusMeters);
+      }
+    }
+
+    const positions = this.npcs.filter((n) => n.isAlive).map((n) => n.position);
+    for (const npc of this.npcs) {
+      if (!npc.isAlive) {
+        npc.update(dt, 0);
+        continue;
+      }
+      npc.setContext(target, visibility, positions);
+      npc.update(dt, npc.position.distanceTo(this.player.position));
+    }
+    for (const squad of this.squads) squad.update(dt);
   }
 
   private handleWeaponSwitching(): void {
@@ -263,6 +392,8 @@ export class WorldScene implements Scene {
     );
     this.pointerHint.classList.toggle('hidden', input.locked);
 
+    this.gizmos.update(this.npcs, this.ctx.render.camera);
+
     const p = this.player.position;
     this.ctx.render.followShadowTarget(p.x, p.y, p.z);
   }
@@ -280,6 +411,11 @@ export class WorldScene implements Scene {
     this.muzzle.dispose();
     this.hud.dispose();
     this.pointerHint.remove();
-    for (const name of ['mundo', 'ciclo', 'player', 'arma']) debugOverlay.removeSection(name);
+    for (const npc of this.npcs) npc.dispose();
+    this.npcs.length = 0;
+    this.gizmos.dispose();
+    for (const name of ['mundo', 'ciclo', 'player', 'arma', 'ia']) {
+      debugOverlay.removeSection(name);
+    }
   }
 }

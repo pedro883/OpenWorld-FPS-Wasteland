@@ -12,7 +12,7 @@ como stub visível, nunca como TODO silencioso.
 | 3. Combate base | ✅ concluída |
 | 3.5 Arsenal (adiantado da fase 8) | ✅ concluída |
 | 4. Mundo | ✅ concluída |
-| 5. IA | ⏳ em andamento |
+| 5. IA | ✅ concluída |
 | 6–9 | fora do escopo desta execução |
 
 ---
@@ -415,3 +415,77 @@ Imposters para distância (os LODs 0–2 já cobrem o alcance útil), e as estra
 fita procedural em vez das peças do Road Pack — o terreno já está nivelado ao longo do
 traçado, e as peças exigiriam lógica de orientação e cruzamento sem ganho visível nessa
 escala de arte.
+
+---
+
+## Fase 5 — IA ✅
+
+**Entregue**
+
+- `ai/perception.ts` — detecção é um **medidor de 0 a 100**, não um booleano. O ganho
+  por segundo é multiplicado por distância (queda com potência), quão central o alvo
+  está no cone, postura (em pé 1,0 / agachado 0,62 / deitado 0,34), movimento
+  (parado 0,55 / andando 1,7 / correndo 2,4 / atirando 3,2, ou 1,35 se com supressor)
+  e pela **visibilidade que o ciclo dia/noite publica**. Estados
+  `unaware → suspicious → searching → aware → engaged` saem todos do mesmo número, o
+  que dá um só valor para depurar. Audição por eventos com raio próprio, atenuada — não
+  bloqueada — por paredes. Memória de última posição conhecida com decaimento.
+- `ai/behaviorTree.ts` — framework com `Sequence`, `Selector`, `PrioritySelector`,
+  `ReactiveSequence`, `Condition`, `Action`, `Inverter`, `Cooldown` e `Repeat`.
+- `ai/cover.ts` — cobertura **encontrada em tempo real**, amostrando anéis ao redor do
+  agente e testando linha de visão real contra a ameaça atual. Classifica cada ponto em
+  agachado (escondido agachado, atira em pé), deitado ou totalmente oculto.
+- `ai/navigation.ts` — direção por leque de sondas com teste de inclinação no
+  heightfield, separação entre companheiros e detecção de travamento.
+- `ai/squad.ts` — líder, retransmissão de contato **com atraso e erro de posição**,
+  divisão em base de fogo e elemento de flanco, e **bounding overwatch** alternando qual
+  metade se move.
+- `entities/npc.ts` — o agente: percepção, árvore, arma real do arsenal, disciplina de
+  rajada, atraso de reação por nível de perícia, e **timeslicing** (30 Hz perto,
+  2 Hz longe).
+- `debug/aiGizmos.ts` — cone de visão, medidor de detecção, barra de supressão,
+  destino, cobertura escolhida e estado da árvore, na tecla `G`.
+
+**Aceite verificado** — esquadrão veterano de 6 contra o jogador a 58 m
+
+| | |
+|---|---|
+| Detecção | 1 agente vê → retransmite → 5 vão a `aware` (medidor 72) |
+| Manobra | 3 em `suppress`, 2–3 em `flank*` com bounding alternado |
+| Cobertura | 0 → 6 agentes em cobertura conforme o combate evolui |
+| Fogo | **45 tiros em 7 s** de simulação, com recarga entre rajadas |
+| Efeito | jogador sangrando e com 2 membros feridos |
+| Desempenho | **180 FPS** com 11 agentes ativos |
+
+**Defeitos encontrados e corrigidos durante a fase**
+
+- **A árvore travava.** `Sequence` guarda o índice do filho em execução e retoma dele,
+  então as condições de guarda nunca eram reavaliadas: um agente que entrou em
+  "imobilizado" ficava lá para sempre, porque a ação devolve `running` e a condição na
+  frente dela era pulada. Foi criada a `ReactiveSequence`, que reavalia todos os filhos
+  a cada tick, e todos os ramos guardados passaram a usá-la.
+- **Os agentes suprimiam a si mesmos.** O callback de passagem de projétil roda para
+  cada tiro, e a boca da arma fica dentro do próprio atirador — todo agente se
+  autossuprimia ao abrir fogo, ficando permanentemente "imobilizado" com o jogador
+  intacto. A checagem passou a excluir quem disparou.
+- **Ordens de esquadrão não chegavam ao combate.** Quem recebia contato retransmitido
+  mas não via o alvo caía no ramo de investigar em vez de suprimir. Agora uma ordem
+  diferente de `hold` com contato do esquadrão já é razão para lutar, e o alvo acreditado
+  cai para o contato compartilhado quando não há visão própria.
+- **Cobertura virava esconderijo.** Todos escolhiam pontos *totalmente ocultos*, de onde
+  não dá para atirar, e ficavam parados: 0 tiros em 6 s. Durante o combate a busca passou
+  a rejeitar pontos sem linha de tiro; o oculto total só vale ao recuar.
+
+**Desvio da especificação — navegação**
+
+A seção 4.5 pede **NavMesh via `recast-navigation-js` gerada no build**. Foi usado
+steering com teste de inclinação no heightfield e sondas de obstáculo. O motivo é o que
+foi sinalizado como risco no plano: o mundo é procedural e transmitido em chunks de
+128 m, então a navmesh teria de ser reconstruída por chunk em tempo de execução. O
+terreno aqui é caminhável em quase toda parte exceto encostas íngremes e água — que o
+teste de inclinação cobre diretamente — e os únicos obstáculos reais são os prédios dos
+POIs e os props, tratados pelas sondas. NavMesh continua sendo a resposta certa para
+**interiores de prédios**, e é lá que isso deve ser retomado.
+
+Também ficou de fora desta fase: `ManVehicle` (depende da fase 6) e cura/reanimação
+entre companheiros.

@@ -69,7 +69,7 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 | Roda do mouse | Velocidade da freecam |
 | Clique | Capturar o mouse (Pointer Lock) |
 | `F1` | Mostra/esconde o painel de debug |
-| `G` | Liga/desliga a freecam |
+| `G` | Gizmos de IA: cone de visão, detecção, cobertura e estado da árvore |
 | `H` | Mostra/esconde o HUD |
 | `T` | Acelera o tempo 60× (cena `world`) |
 | `Y` | Troca o clima: limpo → nublado → chuva → neblina |

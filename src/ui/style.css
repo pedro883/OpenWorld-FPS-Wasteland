@@ -260,3 +260,23 @@ html, body {
   transition: color 0.12s;
 }
 .hotbar-slot.active .hotbar-label { color: rgba(216, 226, 232, 0.85); }
+
+#ai-gizmo-labels {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  display: none;
+}
+.ai-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  font: 10px/1.35 ui-monospace, Consolas, monospace;
+  white-space: pre;
+  color: #dbe6ec;
+  background: rgba(10, 12, 14, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  padding: 2px 5px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}

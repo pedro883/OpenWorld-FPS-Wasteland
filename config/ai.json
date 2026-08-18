@@ -1,0 +1,170 @@
+{
+  "_comment": "IA. Distâncias em metros, ângulos em graus, tempos em segundos. O medidor de detecção vai de 0 a 100; os limiares abaixo definem as transições de estado.",
+
+  "perception": {
+    "fovDegrees": 120,
+    "maxRangeMeters": 400,
+    "eyeHeightMeters": 1.62,
+    "closeRangeMeters": 12,
+    "_comment_gain": "Ganho por segundo do medidor a alcance ideal e visão limpa. Tudo abaixo multiplica esse valor.",
+    "baseGainPerSecond": 62,
+    "decayPerSecond": 14,
+    "thresholds": {
+      "suspicious": 18,
+      "searching": 45,
+      "aware": 72,
+      "engaged": 92
+    },
+    "modifiers": {
+      "_comment": "Multiplicadores do ganho de detecção. Compõem entre si.",
+      "stance": { "stand": 1.0, "crouch": 0.62, "prone": 0.34 },
+      "moving": 1.7,
+      "sprinting": 2.4,
+      "stationary": 0.55,
+      "firingUnsuppressed": 3.2,
+      "firingSuppressed": 1.35,
+      "peripheralVision": 0.4,
+      "_comment_range": "Ganho cai com o quadrado da distância normalizada pelo alcance efetivo.",
+      "rangeFalloffPower": 1.6,
+      "minVisibilityFactor": 0.12
+    },
+    "memory": {
+      "lastKnownDecaySeconds": 22,
+      "searchRadiusMeters": 18,
+      "loseTargetSeconds": 6
+    }
+  },
+
+  "hearing": {
+    "baseRadiusMeters": 45,
+    "_comment": "Eventos sonoros levam raio próprio (a arma define o dela). Estes são multiplicadores por tipo.",
+    "types": {
+      "gunshot": 1.0,
+      "explosion": 2.2,
+      "footstep": 0.14,
+      "sprint": 0.3,
+      "vehicle": 1.6,
+      "impact": 0.5
+    },
+    "wallAttenuation": 0.45,
+    "alertGain": 34
+  },
+
+  "suppression": {
+    "nearMissRadiusMeters": 2.6,
+    "perNearMiss": 0.32,
+    "decayPerSecond": 0.42,
+    "accuracyPenaltyAtFull": 0.72,
+    "duckThreshold": 0.45,
+    "pinnedThreshold": 0.8
+  },
+
+  "skills": {
+    "_comment": "reactionSeconds = atraso entre detectar e agir. spreadMultiplier multiplica a dispersão da arma.",
+    "recruit": {
+      "reactionSeconds": 0.95,
+      "spreadMultiplier": 2.6,
+      "detectionMultiplier": 0.7,
+      "suppressionResistance": 0.4,
+      "coverSkill": 0.35,
+      "burstSeconds": [0.25, 0.6],
+      "pauseSeconds": [0.9, 2.2],
+      "flankChance": 0.15
+    },
+    "regular": {
+      "reactionSeconds": 0.6,
+      "spreadMultiplier": 1.8,
+      "detectionMultiplier": 1.0,
+      "suppressionResistance": 0.6,
+      "coverSkill": 0.6,
+      "burstSeconds": [0.3, 0.8],
+      "pauseSeconds": [0.7, 1.6],
+      "flankChance": 0.35
+    },
+    "veteran": {
+      "reactionSeconds": 0.36,
+      "spreadMultiplier": 1.25,
+      "detectionMultiplier": 1.25,
+      "suppressionResistance": 0.8,
+      "coverSkill": 0.85,
+      "burstSeconds": [0.35, 0.9],
+      "pauseSeconds": [0.5, 1.2],
+      "flankChance": 0.6
+    },
+    "specops": {
+      "reactionSeconds": 0.22,
+      "spreadMultiplier": 0.9,
+      "detectionMultiplier": 1.5,
+      "suppressionResistance": 0.95,
+      "coverSkill": 1.0,
+      "burstSeconds": [0.4, 1.0],
+      "pauseSeconds": [0.35, 0.9],
+      "flankChance": 0.85
+    }
+  },
+
+  "cover": {
+    "_comment": "Pontos candidatos são amostrados em anéis ao redor do agente e pontuados por exposição ao inimigo e linha de tiro própria.",
+    "sampleRings": [4, 9, 16, 24],
+    "samplesPerRing": 10,
+    "crouchCoverHeightMeters": 1.0,
+    "standCoverHeightMeters": 1.7,
+    "minScoreToMove": 0.22,
+    "reevaluateSeconds": 2.5,
+    "maxSearchMeters": 30
+  },
+
+  "combat": {
+    "engageRangeMeters": 220,
+    "preferredRangeMeters": 45,
+    "tooCloseMeters": 8,
+    "aimErrorAtMaxRangeDegrees": 3.2,
+    "leadTargetFactor": 0.85,
+    "reloadAtAmmoFraction": 0.25,
+    "retreatHealthFraction": 0.28,
+    "advanceIfTargetSuppressed": 0.55
+  },
+
+  "squad": {
+    "minSize": 4,
+    "maxSize": 8,
+    "contactRelaySeconds": 0.8,
+    "contactPositionErrorMeters": 6,
+    "reinforcementRadiusMeters": 160,
+    "boundingOverwatchFraction": 0.5,
+    "flankOffsetMeters": 28,
+    "orderReviewSeconds": 3.0
+  },
+
+  "navigation": {
+    "maxSlopeDegrees": 46,
+    "agentRadiusMeters": 0.5,
+    "stepAheadMeters": 2.5,
+    "obstacleProbeMeters": 3.0,
+    "repathSeconds": 1.2,
+    "arriveRadiusMeters": 1.6,
+    "avoidanceStrength": 1.4,
+    "separationMeters": 2.2
+  },
+
+  "timeslicing": {
+    "_comment": "Agentes distantes pensam menos vezes por segundo. Distância em metros, frequência em Hz.",
+    "tiers": [
+      { "distance": 60, "hz": 30 },
+      { "distance": 140, "hz": 12 },
+      { "distance": 260, "hz": 5 },
+      { "distance": 10000, "hz": 2 }
+    ]
+  },
+
+  "spawn": {
+    "defaultSkill": "regular",
+    "healthScale": 1.0,
+    "weaponsBySkill": {
+      "recruit": ["smg_vibora", "pistol_px9", "shotgun_brecha12"],
+      "regular": ["rifle_m4x", "carbine_falcao", "shotgun_brecha12"],
+      "veteran": ["rifle_lince", "rifle_m4x", "marksman_corvo"],
+      "specops": ["rifle_lince", "marksman_corvo", "sniper_tr8"]
+    }
+  }
+}
