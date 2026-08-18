@@ -42,6 +42,7 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 | URL | O que carrega |
 |---|---|
 | `?scene=sandbox` | Chão, rampa e caixas dinâmicas — valida loop fixo, física e interpolação |
+| `?scene=smoke` | Um modelo de cada categoria ao lado de uma referência de 1,80 m — valida o pipeline de assets e a escala dos kits |
 
 ## Controles
 
@@ -55,6 +56,7 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 | Clique | Capturar o mouse (Pointer Lock) |
 | `F1` | Mostra/esconde o painel de debug |
 | `G` | Liga/desliga a freecam |
+| `N` | Próxima animação do personagem (cena `smoke`) |
 
 ## Arquitetura
 

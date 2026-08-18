@@ -7,8 +7,8 @@ como stub visível, nunca como TODO silencioso.
 | Fase | Estado |
 |---|---|
 | 0. Setup | ✅ concluída |
-| 1. Pipeline de assets | ⏳ em andamento |
-| 2. Jogador | ⬜ |
+| 1. Pipeline de assets | ✅ concluída |
+| 2. Jogador | ⏳ em andamento |
 | 3. Combate base | ⬜ |
 | 4. Mundo | ⬜ |
 | 5. IA | ⬜ |
@@ -68,3 +68,72 @@ sombras corretas e o overlay ativo: **180 FPS**, render 0,11 ms, física 0,03 ms
 3. **Personagens.** Os packs `Animated Characters *` só trazem `.fbx`/`.blend`. O
    `Mini Characters` já vem em GLB com rig e 32 animações nomeadas, um set maior que
    o dos packs animados — é ele que o jogo usa.
+
+---
+
+## Fase 1 — Pipeline de assets ✅
+
+**Entregue**
+
+- `tools/extract.mjs` — extração seletiva do zip: só o `.glb` de cada kit ✅, mais
+  áudio, texturas, fontes e sprites de UI. 4.047 arquivos (65,8 MB) em vez dos 88.346
+  do pacote. É incremental: reexecuções pulam a extração salvo com `--force`.
+- `tools/build-assets.mjs` — mescla os modelos **por categoria** em seis GLBs
+  (`characters, weapons, vehicles, props_nature, props_city, props_loot`), cada modelo
+  virando um nó nomeado. Cadeia: `dedup → weld → unpartition → resample → prune →
+  textureCompress(WebP, teto 1024) → reorder → quantize → EXTMeshoptCompression`.
+- `config/asset-scales.json` — fator por kit para converter as unidades nativas em
+  metros, aplicado na instanciação. Ajustável sem rebuild.
+- `src/core/assets.ts` — carrega o manifest, busca as categorias sob demanda, cacheia,
+  clona com `SkeletonUtils` quando o modelo é skinned, resolve clipes de animação e
+  expõe bbox/triângulos/escala por id.
+- `src/scenes/smoke.ts` — cena de aceite com um modelo de cada categoria, grade de 1 m,
+  referência humana de 1,80 m e ciclador de animações (`N`).
+
+**Resultado medido**
+
+| | |
+|---|---|
+| Modelos mesclados | **2.107** em 6 arquivos |
+| Geometria | 45,6 MB → **11,1 MB** (−76%) |
+| Materiais após o merge | 1 (characters), 12 (weapons), 14 (vehicles), 19–21 (props) |
+| **Payload inicial** | **2,2 MB** (characters + weapons + props_nature) — orçamento era 25 MB |
+| Sob demanda | 8,9 MB de modelos + 18,0 MB de áudio |
+| Total em `public/assets` | 30,0 MB — orçamento de streaming era 150 MB |
+| Bundle de código (gzip) | 1,25 MB, dos quais 1,08 MB é o WASM do Rapier |
+
+**Decisões de arquitetura tomadas aqui**
+
+- **Carregamento por categoria, sob demanda.** `props_city` sozinho tem 1.107 modelos e
+  6 MB; exigi-lo no boot desperdiçaria a maior parte do download. Só
+  `characters`, `weapons` e `props_nature` são marcados `preload`.
+- **Escala por kit, não global.** Os kits Kenney não compartilham escala: o Building Kit
+  já é métrico (porta de 2,10 m), o Road Pack usa tiles de 1×1 unidade, o Mini
+  Characters tem 0,67 unidade de altura e o sedã do Car Kit, 2,55. Cada kit tem seu
+  fator em `config/asset-scales.json`, conferido a olho na cena `smoke`.
+- **Building Kit e City Kit convivem com propósitos diferentes:** o primeiro é métrico e
+  serve para interiores percorríveis; o segundo é volume de fundo (casa de 6,8 m).
+
+**Defeitos encontrados e corrigidos durante a fase**
+
+- Os GLBs da Kenney referenciam `Textures/colormap.png` por **URI relativa**, não
+  embutida. A extração inicial trazia só os `.glb` e o build quebrava; passou a extrair
+  também as texturas, preservando o caminho relativo.
+- O three.js remove `[ ] . : /` dos nomes de nó ao carregar glTF
+  (`PropertyBinding.sanitizeNodeName`), então o id `kit/modelo` virava `kitmodelo` e a
+  busca falhava. O GLB agora usa `kit__modelo`; o manifest guarda o id legível como
+  chave e o nome sanitizado em `node`.
+- A API de merge do glTF-Transform v4 é `mergeDocuments(target, source)`, não
+  `document.merge()`. O retorno mapeia propriedade-origem → propriedade-destino, o que
+  passou a ser usado para identificar com precisão a cena e os clipes de cada arquivo.
+- GLB aceita no máximo um buffer; cada arquivo mesclado trazia o seu. Resolvido com
+  `unpartition()`.
+- O sedã a ×1,73 ficava com 2,2 m de altura ao lado de um humano de 1,80 m. O Car Kit é
+  proporcionalmente atarracado, então casar o comprimento real exagera altura e largura;
+  o fator caiu para ×1,35 (2,0 × 1,8 × 3,4 m), que lê melhor em jogo.
+
+**Desvio confirmado**
+
+O áudio é copiado como está. Todos os 580 arquivos já são `.ogg`; a conversão pedida na
+seção 2.3 seria reencodificação com perda. A normalização a −16 LUFS continua pendente e
+depende de instalar ffmpeg.

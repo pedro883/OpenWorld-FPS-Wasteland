@@ -4,6 +4,7 @@ import { profiler } from './core/profiler';
 import { RenderContext } from './render/renderer';
 import { initPhysics, PhysicsWorld } from './physics/world';
 import { debugOverlay } from './debug/overlay';
+import { assets } from './core/assets';
 import { resolveScene } from './scenes/registry';
 import type { Scene } from './scenes/types';
 
@@ -12,7 +13,7 @@ async function boot(): Promise<void> {
   const bootEl = document.getElementById('boot');
   if (!canvas) throw new Error('#viewport canvas ausente no index.html');
 
-  await initPhysics();
+  await Promise.all([initPhysics(), assets.init()]);
 
   const render = new RenderContext(canvas);
   const physics = new PhysicsWorld();

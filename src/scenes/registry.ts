@@ -1,5 +1,6 @@
 import type { Scene } from './types';
 import { SandboxScene } from './sandbox';
+import { SmokeScene } from './smoke';
 
 type SceneFactory = () => Scene;
 
@@ -9,6 +10,7 @@ type SceneFactory = () => Scene;
  */
 export const scenes: Record<string, SceneFactory> = {
   sandbox: () => new SandboxScene(),
+  smoke: () => new SmokeScene(),
 };
 
 export const DEFAULT_SCENE = 'sandbox';
