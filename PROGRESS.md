@@ -9,8 +9,8 @@ como stub visível, nunca como TODO silencioso.
 | 0. Setup | ✅ concluída |
 | 1. Pipeline de assets | ✅ concluída |
 | 2. Jogador | ✅ concluída |
-| 3. Combate base | ⏳ em andamento |
-| 4. Mundo | ⬜ |
+| 3. Combate base | ✅ concluída |
+| 4. Mundo | ⏳ em andamento |
 | 5. IA | ⬜ |
 | 6–9 | fora do escopo desta execução |
 
@@ -219,3 +219,71 @@ acervo. O viewmodel é, portanto, só a arma, com sway, bob, ADS e recuo procedu
 As alternativas seriam modelar braços do zero (fora do escopo CC0 do projeto) ou
 renderizar o corpo inteiro em primeira pessoa, o que fica esquisito num personagem
 tão estilizado.
+
+---
+
+## Fase 3 — Combate base ✅
+
+**Entregue**
+
+- `combat/ballistics.ts` — **projétil real, não hitscan**: velocidade finita, gravidade e
+  arrasto quadrático (`a = -k·|v|·v`). Cada passo fixo é varrido como **segmento**, não
+  como ponto: a 880 m/s a bala anda 14,6 m por tick, e sem isso atravessaria qualquer
+  parede fina. O laço resolve vários impactos dentro do mesmo tick.
+- **Penetração com espessura real**: ao acertar, um raio é lançado de dentro do colisor
+  com `solid = false` para achar a saída; o custo é `espessura × dureza do material` e
+  sai de um orçamento de energia do projétil. **Ricochete** em ângulo rasante contra
+  material duro, com dispersão para não virar espelho perfeito.
+- `combat/weapon.ts` — cadência, modos (auto/rajada/semi), dispersão por
+  postura/mira/movimento/salto com bloom acumulado, **padrão de recuo determinístico**
+  (curva por índice de tiro, portanto memorizável e contra-atacável) e duas recargas
+  (tática mantém a bala na câmara, vazia não).
+- `combat/impacts.ts` — traçantes, decals e faíscas, cada tipo num único
+  `InstancedMesh` com ring buffer. Um tiroteio gera centenas por segundo; uma draw call
+  por tipo é a diferença entre orçamento e engasgo.
+- `entities/hitboxes.ts` — as seis zonas de dano como colisores-sensor numa **camada
+  HITBOX própria**, agachando junto com a postura. `entities/targetDummy.ts` e o
+  jogador usam o mesmo conjunto.
+- HUD de munição com modo de tiro, barra de recarga e confirmação de acerto no retículo
+  (marca distinta para cabeça).
+- `tests/ballistics.test.ts` — 18 testes com um mundo-stub de lajes, cobrindo queda,
+  tempo de voo, varredura contra parede fina, penetração e dano por zona.
+
+**Aceite verificado**
+
+| O que | Medido |
+|---|---|
+| Acerto no torso a 12 m | 100 → 74 HP (26 de dano, multiplicador 1,0) |
+| Acerto na cabeça | 40 → 0 HP (26 × 2,6 = 67,6) |
+| Queda a 100 m | **15,1 cm** (5,56 real: 10–20 cm) |
+| Queda a 300 m | **1,33 m** (5,56 real: ~1,2–1,5 m) |
+| Tempo de voo a 300 m | **0,367 s** (5,56 real: ~0,39 s) |
+| Arrasto | bandas de 200 m levam 0,250 s → 0,250 s → 0,283 s |
+| Madeira 12 cm | atravessa; alvo atrás leva 18 de dano (×0,7 de saída) |
+| Metal 6 cm | atravessa; alvo atrás leva 14 (×0,55) |
+| Saco de areia 35 cm | para |
+| Concreto 30 cm | para |
+| Ricochete em terra (limiar 12°) | quica a 3° e 8°; para a 20° e 45° |
+| Desempenho | 180 FPS, render 0,52 ms, física 0,22 ms, 120 draws, 24,7k tri |
+
+**Defeitos encontrados e corrigidos durante a fase**
+
+- **A bala acertava o próprio atirador.** O cano nasce dentro da cápsula do jogador, e o
+  raycast retornava o próprio colisor na distância 0 — todo tiro morria na saída. Duas
+  correções: `ShotSpec.ignore` exclui o corpo de quem atirou, e as caixas de dano foram
+  para uma **camada HITBOX separada**, de modo que a bala atravessa a cápsula grossa de
+  movimento e resolve contra a zona precisa. Sem isso, todo acerto viraria "torso".
+- **O painel de debug mentia.** Com duas passadas de render (mundo + viewmodel), o
+  three zera `renderer.info` no início de cada `render()`, então o painel mostrava só os
+  números do viewmodel: 6 draws e 486 triângulos, quando o real era 120 e 24.724. Agora
+  `info.autoReset = false` e o reset é manual, uma vez por frame.
+- Um teste de arrasto comparava `t(400) > 2·t(200)`, o que é frágil: a 60 Hz o tempo é
+  quantizado em 16,7 ms e nessa faixa o efeito do arrasto é menor que um tick. Passou a
+  medir bandas sucessivas de 200 m — a mesma afirmação física, sem a fragilidade.
+
+**Nota de método**
+
+O painel embutido do navegador estrangula o `requestAnimationFrame` enquanto um script
+roda, o que fazia medições feitas com `await` parecerem "sem impacto algum". Os testes
+de balística passaram a **avançar o sistema manualmente** (`ballistics.update(1/60)` em
+laço), o que é determinístico e imune a isso.

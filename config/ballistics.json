@@ -1,0 +1,41 @@
+{
+  "_comment": "Balística com projétil real. Arrasto quadrático: a = -k*|v|*v, com k derivado do coeficiente balístico. Penetração gasta um orçamento de energia por metro de material; ricochete só ocorre em ângulo raso contra material duro.",
+  "gravityScale": 1.0,
+  "airDrag": 0.00042,
+  "maxFlightSeconds": 6.0,
+  "maxProjectiles": 256,
+  "tracer": {
+    "everyNthShot": 3,
+    "lengthMeters": 12,
+    "widthMeters": 0.035,
+    "color": "#ffd489",
+    "fadeSeconds": 0.12
+  },
+  "decals": {
+    "max": 128,
+    "sizeMeters": 0.12,
+    "lifetimeSeconds": 25,
+    "offsetMeters": 0.012
+  },
+  "materials": {
+    "_comment": "hardness = quanto o material rouba de energia por metro atravessado. ricochetAngle = ângulo máximo (graus, em relação à superfície) em que a bala quica.",
+    "flesh": { "hardness": 0.6, "ricochetAngle": 0, "exitDamageFactor": 0.85, "decal": "blood" },
+    "wood": { "hardness": 1.4, "ricochetAngle": 8, "exitDamageFactor": 0.7, "decal": "chip" },
+    "dirt": { "hardness": 2.2, "ricochetAngle": 12, "exitDamageFactor": 0.45, "decal": "dust" },
+    "sandbag": { "hardness": 4.5, "ricochetAngle": 6, "exitDamageFactor": 0.3, "decal": "dust" },
+    "metal": { "hardness": 6.5, "ricochetAngle": 22, "exitDamageFactor": 0.55, "decal": "spark" },
+    "concrete": { "hardness": 9.0, "ricochetAngle": 18, "exitDamageFactor": 0.4, "decal": "dust" },
+    "glass": { "hardness": 0.3, "ricochetAngle": 0, "exitDamageFactor": 0.95, "decal": "glass" }
+  },
+  "ricochet": {
+    "energyLoss": 0.45,
+    "spreadDegrees": 7,
+    "maxBounces": 2
+  },
+  "suppression": {
+    "_comment": "Usado pela IA na fase 5: um tiro que passa perto conta como fogo de supressão.",
+    "nearMissRadiusMeters": 2.2,
+    "perShot": 0.35,
+    "decayPerSecond": 0.5
+  }
+}

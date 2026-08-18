@@ -178,3 +178,32 @@ html, body {
   cursor: pointer;
 }
 #pointer-hint.hidden { display: none; }
+
+#hud-ammo {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  text-align: right;
+  min-width: 170px;
+}
+.ammo-line {
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+.ammo-count { color: #f0f4f7; }
+.ammo-count.low { color: var(--ui-accent); }
+.ammo-count.empty { color: var(--ui-danger); }
+.ammo-reserve { font-size: 17px; color: rgba(216, 226, 232, 0.65); }
+#hud-ammo .hud-line { text-align: right; }
+.hud-bar.reload { margin-top: 5px; height: 4px; }
+.hud-bar-fill.reload { background: var(--ui-accent); width: 0; transition: width 0.05s linear; }
+
+#crosshair.hit i,
+#crosshair.headshot i { animation: hitflash 0.22s ease-out; }
+#crosshair.headshot i { background: #ff6a4d; }
+@keyframes hitflash {
+  0% { background: #ff6a4d; transform: scale(1.6); }
+  100% { background: rgba(240, 245, 248, 0.9); transform: scale(1); }
+}

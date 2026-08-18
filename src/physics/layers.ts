@@ -12,6 +12,12 @@ export const Layer = {
   PROJECTILE: 1 << 5,
   DEBRIS: 1 << 6,
   TRIGGER: 1 << 7,
+  /**
+   * Per-zone damage boxes. Kept separate from PLAYER/NPC so that bullets test
+   * the precise hitboxes and pass straight through the coarse movement capsule
+   * — otherwise the capsule always wins the raycast and every hit is a torso.
+   */
+  HITBOX: 1 << 8,
 } as const;
 
 export type LayerMask = number;
@@ -21,7 +27,7 @@ export function groups(membership: LayerMask, filter: LayerMask): number {
 }
 
 export const WORLD_SOLID = Layer.TERRAIN | Layer.STATIC;
-/** What a bullet is allowed to hit. */
-export const BULLET_FILTER = WORLD_SOLID | Layer.PLAYER | Layer.NPC | Layer.VEHICLE;
+/** What a bullet is allowed to hit: world geometry, damage zones, vehicles. */
+export const BULLET_FILTER = WORLD_SOLID | Layer.HITBOX | Layer.VEHICLE;
 /** What blocks line of sight for AI perception. */
 export const SIGHT_BLOCKERS = WORLD_SOLID | Layer.VEHICLE;

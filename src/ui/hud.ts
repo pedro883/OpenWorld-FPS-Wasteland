@@ -1,5 +1,6 @@
 import { ZONES, type Zone } from '../entities/health';
 import type { Player } from '../entities/player';
+import type { Weapon } from '../combat/weapon';
 
 /** Rough body diagram, in percentages of the HUD silhouette box. */
 const ZONE_BOXES: Record<Zone, { left: number; top: number; width: number; height: number }> = {
@@ -24,6 +25,11 @@ export class Hud {
   private readonly bleedEl: HTMLDivElement;
   private readonly hintEl: HTMLDivElement;
   private readonly vignette: HTMLDivElement;
+  private readonly ammoEl: HTMLDivElement;
+  private readonly ammoCount: HTMLSpanElement;
+  private readonly ammoReserve: HTMLSpanElement;
+  private readonly ammoMode: HTMLDivElement;
+  private readonly reloadBar: HTMLDivElement;
 
   constructor() {
     this.root = document.createElement('div');
@@ -78,6 +84,25 @@ export class Hud {
     panel.appendChild(bars);
     this.root.appendChild(panel);
 
+    this.ammoEl = document.createElement('div');
+    this.ammoEl.id = 'hud-ammo';
+    this.ammoCount = document.createElement('span');
+    this.ammoCount.className = 'ammo-count';
+    this.ammoReserve = document.createElement('span');
+    this.ammoReserve.className = 'ammo-reserve';
+    const ammoLine = document.createElement('div');
+    ammoLine.className = 'ammo-line';
+    ammoLine.append(this.ammoCount, this.ammoReserve);
+    this.ammoMode = document.createElement('div');
+    this.ammoMode.className = 'hud-line';
+    const reloadTrack = document.createElement('div');
+    reloadTrack.className = 'hud-bar reload';
+    this.reloadBar = document.createElement('div');
+    this.reloadBar.className = 'hud-bar-fill reload';
+    reloadTrack.appendChild(this.reloadBar);
+    this.ammoEl.append(ammoLine, this.ammoMode, reloadTrack);
+    this.root.appendChild(this.ammoEl);
+
     this.hintEl = document.createElement('div');
     this.hintEl.id = 'hud-hint';
     this.root.appendChild(this.hintEl);
@@ -86,7 +111,7 @@ export class Hud {
   }
 
   /** `spreadDegrees` opens the crosshair so recoil is legible without numbers. */
-  update(player: Player, spreadDegrees = 1.5): void {
+  update(player: Player, spreadDegrees = 1.5, weapon?: Weapon): void {
     for (const zone of ZONES) {
       const frac = player.health.fraction(zone);
       const el = this.zoneEls[zone];
@@ -117,6 +142,27 @@ export class Hud {
     // The screen darkens and reddens as the lethal zones drop.
     const vitality = player.health.vitality;
     this.vignette.style.opacity = `${Math.min(0.85, (1 - vitality) * 1.1)}`;
+
+    if (weapon) {
+      this.ammoEl.style.display = 'block';
+      this.ammoCount.textContent = String(weapon.ammo);
+      this.ammoCount.classList.toggle('empty', weapon.ammo === 0);
+      this.ammoCount.classList.toggle('low', weapon.ammo > 0 && weapon.ammo <= weapon.def.magazine * 0.25);
+      this.ammoReserve.textContent = ` / ${weapon.reserve}`;
+      const mode = { auto: 'AUTO', burst: 'RAJADA', single: 'SEMI' }[weapon.fireMode] ?? weapon.fireMode;
+      this.ammoMode.textContent = `${weapon.def.name}   ${mode}`;
+      this.reloadBar.style.width = weapon.isReloading ? `${weapon.reloadProgress * 100}%` : '0%';
+    } else {
+      this.ammoEl.style.display = 'none';
+    }
+  }
+
+  /** Brief red tick on the crosshair confirming a hit landed. */
+  flashHit(headshot: boolean): void {
+    this.crosshair.classList.remove('hit', 'headshot');
+    // Reflow so the animation restarts even on rapid consecutive hits.
+    void this.crosshair.offsetWidth;
+    this.crosshair.classList.add(headshot ? 'headshot' : 'hit');
   }
 
   setHint(text: string): void {

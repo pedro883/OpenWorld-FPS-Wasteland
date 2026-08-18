@@ -36,6 +36,10 @@ export class RenderContext {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // three resets render stats at the start of every render() call, so the
+    // overlay pass would otherwise wipe the world pass's numbers and the debug
+    // panel would report only the viewmodel. Reset once per frame instead.
+    this.renderer.info.autoReset = false;
 
     this.camera = new THREE.PerspectiveCamera(
       Player.camera.fovDegrees,
@@ -109,6 +113,7 @@ export class RenderContext {
   };
 
   render(): void {
+    this.renderer.info.reset();
     this.renderer.autoClear = true;
     this.renderer.render(this.scene, this.camera);
     if (this.overlayScene.children.length > 2) {

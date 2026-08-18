@@ -3,7 +3,9 @@ import { Player as Cfg, World as WorldCfg } from '../core/config';
 import { input, MOUSE_RIGHT } from '../core/input';
 import { CharacterController, STANCE_EYE, type Stance } from '../physics/characterController';
 import type { PhysicsWorld } from '../physics/world';
-import { ZoneHealth } from './health';
+import { ZoneHealth, type Zone } from './health';
+import { HitboxSet } from './hitboxes';
+import type { Damageable } from '../combat/types';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const stamCfg = Cfg.stamina;
@@ -31,9 +33,12 @@ export function readPlayerInput(): PlayerInput {
   };
 }
 
-export class Player {
+export class Player implements Damageable {
   readonly controller: CharacterController;
   readonly health = new ZoneHealth();
+  readonly hitboxes: HitboxSet;
+  /** Direction of the most recent hit, for the directional damage indicator. */
+  lastHitDirection: THREE.Vector3 | null = null;
 
   yaw = 0;
   pitch = 0;
@@ -62,8 +67,22 @@ export class Player {
   constructor(physics: PhysicsWorld, start: THREE.Vector3) {
     this.controller = new CharacterController(physics, start);
     physics.own(this.controller.collider, this);
+    // Damage zones ride the same rigid body, so they follow for free.
+    this.hitboxes = new HitboxSet(physics, this, { attachTo: this.controller.body });
     this.prevFeet.copy(start);
     this.currFeet.copy(start);
+  }
+
+  get isAlive(): boolean {
+    return this.health.alive;
+  }
+
+  worldPosition(out: THREE.Vector3): THREE.Vector3 {
+    return out.copy(this.currFeet);
+  }
+
+  onDamaged(_zone: Zone, _amount: number, fromDirection: THREE.Vector3): void {
+    this.lastHitDirection = fromDirection.clone();
   }
 
   get position(): THREE.Vector3 {
@@ -123,6 +142,8 @@ export class Player {
     if (this.stanceQueued) {
       this.controller.trySetStance(this.stanceQueued);
       this.stanceQueued = null;
+      // A prone target must actually be a smaller target.
+      this.hitboxes.setStanceHeight(this.controller.height);
     }
 
     const targetSpeed = this.targetSpeed(intent);
@@ -292,6 +313,7 @@ export class Player {
   }
 
   dispose(): void {
+    this.hitboxes.dispose();
     this.controller.dispose();
   }
 }

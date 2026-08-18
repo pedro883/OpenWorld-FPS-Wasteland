@@ -114,6 +114,32 @@ export class PhysicsWorld {
     };
   }
 
+  /**
+   * Distance from `origin` to where the ray leaves one specific collider.
+   * `solid = false` is what makes a ray that starts inside a shape report the
+   * exit point instead of zero — that is how bullet penetration measures the
+   * real thickness of what it just hit.
+   */
+  raycastCollider(
+    collider: RAPIER.Collider,
+    origin: { x: number; y: number; z: number },
+    dir: { x: number; y: number; z: number },
+    maxDistance: number,
+  ): number | null {
+    const ray = new RAPIER.Ray(origin, dir);
+    const hit = this.world.castRay(
+      ray,
+      maxDistance,
+      false,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (c) => c.handle === collider.handle,
+    );
+    return hit ? hit.timeOfImpact : null;
+  }
+
   /** True when nothing solid sits between the two points. */
   hasLineOfSight(
     from: { x: number; y: number; z: number },

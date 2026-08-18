@@ -43,7 +43,7 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 |---|---|
 | `?scene=sandbox` | Chão, rampa e caixas dinâmicas — valida loop fixo, física e interpolação |
 | `?scene=smoke` | Um modelo de cada categoria ao lado de uma referência de 1,80 m — valida o pipeline de assets e a escala dos kits |
-| `?scene=player` | **Padrão.** Circuito de obstáculos: rampas de 15° a 55°, degraus de 0,20 m a 0,70 m, saliência e vão de rastejo |
+| `?scene=player` | **Padrão.** Circuito de obstáculos (rampas de 15° a 55°, degraus de 0,20 m a 0,70 m, saliência, vão de rastejo) + campo de tiro com alvos a 12/30/65/120/200 m e painéis de madeira, saco de areia, metal e concreto |
 
 ## Controles
 
@@ -53,10 +53,13 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 | `Shift` | Correr |
 | `C` | Agachar |
 | `X` | Deitar |
+| Botão esquerdo | Atirar |
 | Botão direito | Mirar (ADS) |
+| `R` | Recarregar |
+| `B` | Trocar modo de tiro (auto / rajada / semi) |
 | `F` | Bandagem |
 | `1`–`6` | Aplicar dano de teste na zona (cabeça, torso, braços, pernas) |
-| `R` | Renascer |
+| `K` | Renascer e restaurar os alvos |
 | `Espaço` | Pular / subir (freecam) |
 | `Ctrl` | Descer (freecam) |
 | Roda do mouse | Velocidade da freecam |
