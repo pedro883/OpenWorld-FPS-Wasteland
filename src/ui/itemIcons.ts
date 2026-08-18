@@ -16,16 +16,13 @@ import type { ItemBase, ItemTag } from '../inventory/types';
 
 /** Sprite id per item, when the Weapon Pack has one that genuinely depicts it. */
 const SPRITE_BY_ITEM: Record<string, string> = {
-  rifle_assalto: 'weapon-pack/machinegun',
-  sniper: 'weapon-pack/sniper',
-  pistola: 'weapon-pack/pistol',
-  carregador_556: 'weapon-pack/ammo_machinegun',
-  carregador_9mm: 'weapon-pack/ammo_pistol',
-  municao_556: 'weapon-pack/ammo_sniper',
-  municao_9mm: 'weapon-pack/ammo_uzi',
-  granada_frag: 'weapon-pack/grenade',
-  granada_fumaca: 'weapon-pack/grenadeSmoke',
-  supressor: 'weapon-pack/pistolSilencer',
+  ammo_9mm: 'weapon-pack/ammo_pistol',
+  ammo_556: 'weapon-pack/ammo_machinegun',
+  ammo_762: 'weapon-pack/ammo_sniper',
+  ammo_12g: 'weapon-pack/ammo_shotgun',
+  ammo_40mm: 'weapon-pack/ammo_machinegunLauncher',
+  ammo_rocket: 'weapon-pack/ammo_rocket',
+  muzzle_suppressor: 'weapon-pack/pistolSilencer',
 };
 
 const GLYPHS: Partial<Record<ItemTag, string>> = {

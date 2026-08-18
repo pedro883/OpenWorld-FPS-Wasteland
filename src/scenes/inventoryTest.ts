@@ -2,14 +2,8 @@ import * as THREE from 'three';
 import type { Scene, SceneContext } from './types';
 import { InventorySystem } from '../inventory/inventorySystem';
 import { GridInventoryPanel } from '../ui/gridInventoryPanel';
-import type { ItemBase, ItemInstance } from '../inventory/types';
-import itemsGrid from '../../config/items-grid.json';
-
-const BASES = new Map<string, ItemBase>(
-  Object.entries(itemsGrid.items as unknown as Record<string, Omit<ItemBase, 'id'>>).map(
-    ([id, def]) => [id, { id, ...def }],
-  ),
-);
+import type { ItemInstance } from '../inventory/types';
+import { itemBase, resolveBase } from '../inventory/catalogue';
 
 let counter = 0;
 function makeInstance(baseId: string, quantity = 1): ItemInstance {
@@ -43,7 +37,7 @@ export class InventoryTestScene implements Scene {
 
   init(ctx: SceneContext): void {
     ctx.render.scene.background = new THREE.Color(0x10151a);
-    this.system = new InventorySystem((id) => BASES.get(id) ?? null);
+    this.system = new InventorySystem(resolveBase);
 
     this.system.createContainer({
       id: 'bolsos', kind: 'player', name: 'Bolsos', width: 4, height: 1, ownerId: 'p1',
@@ -61,24 +55,24 @@ export class InventoryTestScene implements Scene {
     });
 
     for (const [baseId, target] of [
-      ['rifle_assalto', 'stash'],
-      ['carregador_556', 'stash'],
-      ['carregador_556', 'stash'],
-      ['granada_frag', 'stash'],
-      ['mochila_assalto', 'stash'],
-      ['capacete', 'stash'],
-      ['luneta_4x', 'stash'],
-      ['pistola', 'corpo-teste'],
-      ['carregador_9mm', 'corpo-teste'],
-      ['municao_556', 'municao'],
+      ['ammo_556', 'stash'],
+      ['medkit', 'stash'],
+      ['jerrycan', 'stash'],
+      ['backpack_large', 'stash'],
+      ['helmet', 'stash'],
+      ['optic_scope4x', 'stash'],
+      ['vest_heavy', 'stash'],
+      ['ammo_9mm', 'corpo-teste'],
+      ['bandage', 'corpo-teste'],
+      ['ammo_762', 'municao'],
     ] as [string, string][]) {
-      const instance = makeInstance(baseId, baseId.startsWith('municao') ? 60 : 1);
+      const instance = makeInstance(baseId, baseId.startsWith('ammo_') ? 60 : 1);
       this.system.track(instance);
       this.system.container(target)?.insert(instance);
     }
 
     // Something already lying about, so the ground column has content.
-    const dropped = makeInstance('granada_frag');
+    const dropped = makeInstance('scrap');
     this.system.track(dropped);
     this.system.drop(dropped.uuid, 0, 0, 0);
 
@@ -88,7 +82,7 @@ export class InventoryTestScene implements Scene {
       ownGridIds: () => ['bolsos', 'stash'],
       externalGridId: () => this.corpseId,
       dropPosition: () => ({ x: 0, y: 0, z: 0, yaw: 0 }),
-      resolve: (id) => BASES.get(id) ?? null,
+      resolve: itemBase,
     });
     this.panel.show();
 
