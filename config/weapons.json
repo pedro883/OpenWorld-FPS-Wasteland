@@ -1,62 +1,315 @@
 {
-  "_comment": "Nomes fictícios/genéricos por exigência da seção 9 da spec. Distâncias em metros, tempos em segundos, ângulos em graus. O padrão de recuo é uma curva por disparo (índice = nº do tiro na rajada), o que o torna memorizável. Os offsets de viewmodel são relativos à câmera; a origem dos modelos Kenney fica na BASE da arma, então o eixo Y desce quase uma altura inteira do modelo.",
+  "_comment": "Arsenal. Nomes fictícios/genéricos por exigência da seção 9 da spec — nenhuma marca real. Distâncias em metros, tempos em segundos, ângulos em graus. Cada arma herda de `classDefaults[class]` e sobrescreve só o que difere. O padrão de recuo é uma curva indexada pelo nº do tiro, o que o torna memorizável. A pose de mira (ADS) é derivada do bounding box do modelo em tempo de carga, não fixada aqui.",
+
+  "ammoTypes": {
+    "9mm": { "name": "9 mm", "startingReserve": 180, "maxReserve": 300, "icon": "weapon-pack/ammo_uzi" },
+    "5.56": { "name": "5,56 mm", "startingReserve": 210, "maxReserve": 360, "icon": "weapon-pack/ammo_machinegun" },
+    "7.62": { "name": "7,62 mm", "startingReserve": 60, "maxReserve": 120, "icon": "weapon-pack/ammo_sniper" },
+    "12g": { "name": "cartucho 12", "startingReserve": 48, "maxReserve": 96, "icon": "weapon-pack/ammo_shotgun" },
+    "40mm": { "name": "granada 40 mm", "startingReserve": 8, "maxReserve": 16, "icon": "weapon-pack/ammo_machinegunLauncher" },
+    "rocket": { "name": "foguete", "startingReserve": 4, "maxReserve": 8, "icon": "weapon-pack/ammo_rocket" },
+    "fuel": { "name": "combustível", "startingReserve": 200, "maxReserve": 400, "icon": "weapon-pack/ammo_rocketModern" },
+    "none": { "name": "—", "startingReserve": 0, "maxReserve": 0, "icon": "weapon-pack/knife_sharp" }
+  },
+
   "defaults": {
     "adsTransitionSeconds": 0.18,
     "spreadRecoverPerSecond": 3.5,
+    "switchSeconds": 0.55,
     "viewmodel": {
       "hip": [0.11, -0.3, -0.72],
-      "ads": [0.0, -0.135, -0.6],
+      "adsDistance": -0.62,
+      "adsSightDrop": 0.02,
       "rotationDegrees": [0, 180, 0],
       "scale": 0.5,
       "swayPosition": 0.035,
       "swayRotation": 0.06,
-      "bobAmount": 0.014
+      "bobAmount": 0.014,
+      "reloadDip": 0.16,
+      "reloadRollDegrees": 34,
+      "switchDip": 0.34
     }
   },
-  "weapons": {
-    "rifle_m4x": {
-      "name": "Fuzil de Assalto M4X",
-      "class": "rifle",
-      "model": "weapon-pack/machinegun",
-      "caliber": "5.56",
-      "damage": 26,
-      "damageFalloff": [
-        [0, 1.0],
-        [70, 1.0],
-        [180, 0.68],
-        [350, 0.46]
-      ],
-      "muzzleVelocity": 880,
-      "penetration": 0.55,
-      "rpm": 780,
+
+  "classDefaults": {
+    "pistol": {
+      "fireModes": ["single"],
+      "rpm": 420,
+      "muzzleVelocity": 380,
+      "penetration": 0.18,
+      "zeroMeters": 25,
+      "noiseRadiusMeters": 140,
+      "weightKg": 0.9,
+      "spread": { "stand": 2.4, "crouch": 1.8, "prone": 1.4, "adsMultiplier": 0.3, "movingMultiplier": 2.0, "jumpingMultiplier": 4.0, "perShotDegrees": 0.5, "maxDegrees": 7 },
+      "recoil": { "verticalPattern": [1, 1.1, 1.15, 1.2], "horizontalPattern": [0, 0.2, -0.25, 0.15], "verticalDegrees": 0.5, "horizontalDegrees": 0.28, "recoverySeconds": 0.3, "recoveryFraction": 0.8, "viewKick": 0.7, "adsMultiplier": 0.7 }
+    },
+    "smg": {
+      "fireModes": ["auto", "single"],
+      "rpm": 900,
+      "muzzleVelocity": 400,
+      "penetration": 0.2,
+      "zeroMeters": 50,
+      "noiseRadiusMeters": 180,
+      "weightKg": 2.6,
+      "spread": { "stand": 2.2, "crouch": 1.6, "prone": 1.1, "adsMultiplier": 0.32, "movingMultiplier": 1.9, "jumpingMultiplier": 3.6, "perShotDegrees": 0.4, "maxDegrees": 7.5 },
+      "recoil": { "verticalPattern": [0.8, 0.95, 1.05, 1.15, 1.2, 1.25, 1.3, 1.3, 1.25, 1.2], "horizontalPattern": [0, 0.2, -0.3, 0.35, -0.4, 0.45, -0.3, 0.4, -0.5, 0.3], "verticalDegrees": 0.34, "horizontalDegrees": 0.34, "recoverySeconds": 0.28, "recoveryFraction": 0.75, "viewKick": 0.7, "adsMultiplier": 0.75 }
+    },
+    "rifle": {
       "fireModes": ["auto", "burst", "single"],
       "burstCount": 3,
-      "magazine": 30,
-      "reloadTacticalSeconds": 2.1,
-      "reloadEmptySeconds": 2.95,
+      "rpm": 780,
+      "muzzleVelocity": 880,
+      "penetration": 0.55,
       "zeroMeters": 100,
       "noiseRadiusMeters": 260,
       "weightKg": 3.4,
-      "spread": {
-        "stand": 1.7,
-        "crouch": 1.15,
-        "prone": 0.72,
-        "adsMultiplier": 0.22,
-        "movingMultiplier": 2.3,
-        "jumpingMultiplier": 4.0,
-        "perShotDegrees": 0.34,
-        "maxDegrees": 6.0
-      },
-      "recoil": {
-        "verticalPattern": [1.0, 1.25, 1.4, 1.5, 1.55, 1.6, 1.6, 1.55, 1.5, 1.45],
-        "horizontalPattern": [0.0, 0.15, -0.1, 0.3, -0.35, 0.45, -0.2, 0.5, -0.55, 0.25],
-        "verticalDegrees": 0.42,
-        "horizontalDegrees": 0.3,
-        "recoverySeconds": 0.34,
-        "recoveryFraction": 0.75,
-        "viewKick": 0.9,
-        "adsMultiplier": 0.72
-      }
+      "spread": { "stand": 1.7, "crouch": 1.15, "prone": 0.72, "adsMultiplier": 0.22, "movingMultiplier": 2.3, "jumpingMultiplier": 4.0, "perShotDegrees": 0.34, "maxDegrees": 6 },
+      "recoil": { "verticalPattern": [1, 1.25, 1.4, 1.5, 1.55, 1.6, 1.6, 1.55, 1.5, 1.45], "horizontalPattern": [0, 0.15, -0.1, 0.3, -0.35, 0.45, -0.2, 0.5, -0.55, 0.25], "verticalDegrees": 0.42, "horizontalDegrees": 0.3, "recoverySeconds": 0.34, "recoveryFraction": 0.75, "viewKick": 0.9, "adsMultiplier": 0.72 }
+    },
+    "marksman": {
+      "fireModes": ["single"],
+      "rpm": 260,
+      "muzzleVelocity": 840,
+      "penetration": 0.8,
+      "zeroMeters": 200,
+      "noiseRadiusMeters": 320,
+      "weightKg": 4.6,
+      "adsFovDegrees": 26,
+      "spread": { "stand": 1.5, "crouch": 0.85, "prone": 0.32, "adsMultiplier": 0.1, "movingMultiplier": 3.0, "jumpingMultiplier": 5.0, "perShotDegrees": 0.7, "maxDegrees": 6 },
+      "recoil": { "verticalPattern": [1.6, 1.7, 1.75], "horizontalPattern": [0, 0.2, -0.2], "verticalDegrees": 0.8, "horizontalDegrees": 0.25, "recoverySeconds": 0.45, "recoveryFraction": 0.85, "viewKick": 1.4, "adsMultiplier": 0.8 }
+    },
+    "sniper": {
+      "fireModes": ["single"],
+      "rpm": 48,
+      "boltActionSeconds": 1.15,
+      "muzzleVelocity": 900,
+      "penetration": 1.6,
+      "zeroMeters": 300,
+      "noiseRadiusMeters": 420,
+      "weightKg": 6.2,
+      "adsFovDegrees": 18,
+      "spread": { "stand": 2.2, "crouch": 1.0, "prone": 0.18, "adsMultiplier": 0.05, "movingMultiplier": 4.0, "jumpingMultiplier": 6.0, "perShotDegrees": 1.0, "maxDegrees": 7 },
+      "recoil": { "verticalPattern": [2.4], "horizontalPattern": [0.1], "verticalDegrees": 1.2, "horizontalDegrees": 0.3, "recoverySeconds": 0.7, "recoveryFraction": 0.9, "viewKick": 2.2, "adsMultiplier": 0.85 }
+    },
+    "shotgun": {
+      "fireModes": ["single"],
+      "rpm": 75,
+      "muzzleVelocity": 400,
+      "penetration": 0.14,
+      "pellets": 8,
+      "pelletSpreadDegrees": 3.4,
+      "zeroMeters": 25,
+      "noiseRadiusMeters": 300,
+      "weightKg": 3.8,
+      "reloadPerShell": true,
+      "spread": { "stand": 1.2, "crouch": 0.9, "prone": 0.7, "adsMultiplier": 0.55, "movingMultiplier": 1.6, "jumpingMultiplier": 2.5, "perShotDegrees": 0.2, "maxDegrees": 4 },
+      "recoil": { "verticalPattern": [2.0, 2.1], "horizontalPattern": [0.15, -0.2], "verticalDegrees": 1.0, "horizontalDegrees": 0.4, "recoverySeconds": 0.5, "recoveryFraction": 0.85, "viewKick": 1.8, "adsMultiplier": 0.8 }
+    },
+    "lmg": {
+      "fireModes": ["auto"],
+      "rpm": 650,
+      "muzzleVelocity": 860,
+      "penetration": 0.7,
+      "zeroMeters": 150,
+      "noiseRadiusMeters": 340,
+      "weightKg": 8.5,
+      "spread": { "stand": 3.2, "crouch": 1.8, "prone": 0.6, "adsMultiplier": 0.3, "movingMultiplier": 2.6, "jumpingMultiplier": 5.0, "perShotDegrees": 0.28, "maxDegrees": 8 },
+      "recoil": { "verticalPattern": [1.1, 1.3, 1.5, 1.65, 1.75, 1.8, 1.8, 1.75, 1.7, 1.65], "horizontalPattern": [0, 0.3, -0.35, 0.45, -0.5, 0.55, -0.45, 0.6, -0.6, 0.4], "verticalDegrees": 0.38, "horizontalDegrees": 0.4, "recoverySeconds": 0.4, "recoveryFraction": 0.6, "viewKick": 1.0, "adsMultiplier": 0.8 }
+    },
+    "launcher": {
+      "fireModes": ["single"],
+      "rpm": 30,
+      "muzzleVelocity": 90,
+      "penetration": 0,
+      "projectile": "rocket",
+      "zeroMeters": 100,
+      "noiseRadiusMeters": 480,
+      "weightKg": 7.5,
+      "armingDistanceMeters": 4,
+      "spread": { "stand": 1.6, "crouch": 1.1, "prone": 0.8, "adsMultiplier": 0.3, "movingMultiplier": 2.0, "jumpingMultiplier": 3.5, "perShotDegrees": 0, "maxDegrees": 3 },
+      "recoil": { "verticalPattern": [3.0], "horizontalPattern": [0.3], "verticalDegrees": 1.4, "horizontalDegrees": 0.5, "recoverySeconds": 0.8, "recoveryFraction": 0.9, "viewKick": 2.6, "adsMultiplier": 0.9 }
+    },
+    "flamer": {
+      "fireModes": ["auto"],
+      "rpm": 600,
+      "muzzleVelocity": 26,
+      "penetration": 0,
+      "projectile": "flame",
+      "zeroMeters": 15,
+      "noiseRadiusMeters": 160,
+      "weightKg": 9.0,
+      "spread": { "stand": 4.0, "crouch": 3.4, "prone": 3.0, "adsMultiplier": 0.8, "movingMultiplier": 1.3, "jumpingMultiplier": 1.6, "perShotDegrees": 0, "maxDegrees": 6 },
+      "recoil": { "verticalPattern": [0.2], "horizontalPattern": [0.1], "verticalDegrees": 0.08, "horizontalDegrees": 0.08, "recoverySeconds": 0.2, "recoveryFraction": 0.9, "viewKick": 0.2, "adsMultiplier": 0.9 }
+    },
+    "throwable": {
+      "fireModes": ["single"],
+      "rpm": 50,
+      "projectile": "thrown",
+      "throwSpeed": 18,
+      "fuseSeconds": 3.2,
+      "muzzleVelocity": 18,
+      "penetration": 0,
+      "noiseRadiusMeters": 60,
+      "weightKg": 0.4,
+      "spread": { "stand": 0.6, "crouch": 0.4, "prone": 0.4, "adsMultiplier": 0.5, "movingMultiplier": 1.4, "jumpingMultiplier": 2.0, "perShotDegrees": 0, "maxDegrees": 2 },
+      "recoil": { "verticalPattern": [0.4], "horizontalPattern": [0], "verticalDegrees": 0.2, "horizontalDegrees": 0.1, "recoverySeconds": 0.3, "recoveryFraction": 0.9, "viewKick": 0.4, "adsMultiplier": 1.0 }
+    },
+    "melee": {
+      "fireModes": ["single"],
+      "rpm": 110,
+      "projectile": "melee",
+      "reachMeters": 2.0,
+      "muzzleVelocity": 100,
+      "penetration": 0,
+      "noiseRadiusMeters": 8,
+      "weightKg": 0.5,
+      "spread": { "stand": 0, "crouch": 0, "prone": 0, "adsMultiplier": 1, "movingMultiplier": 1, "jumpingMultiplier": 1, "perShotDegrees": 0, "maxDegrees": 0 },
+      "recoil": { "verticalPattern": [0.6], "horizontalPattern": [0.3], "verticalDegrees": 0.3, "horizontalDegrees": 0.2, "recoverySeconds": 0.25, "recoveryFraction": 0.9, "viewKick": 0.5, "adsMultiplier": 1.0 }
     }
+  },
+
+  "weapons": {
+    "pistol_px9": {
+      "name": "Pistola PX-9", "class": "pistol", "model": "weapon-pack/pistol", "ammo": "9mm",
+      "damage": 22, "magazine": 15, "reloadTacticalSeconds": 1.5, "reloadEmptySeconds": 2.1,
+      "damageFalloff": [[0, 1], [25, 1], [60, 0.7], [120, 0.45]], "slot": "secondary"
+    },
+    "pistol_px9s": {
+      "name": "Pistola PX-9 Silenciada", "class": "pistol", "model": "weapon-pack/pistolSilencer", "ammo": "9mm",
+      "damage": 19, "magazine": 15, "reloadTacticalSeconds": 1.55, "reloadEmptySeconds": 2.15,
+      "damageFalloff": [[0, 1], [25, 1], [60, 0.68], [120, 0.42]], "suppressed": true,
+      "noiseRadiusMeters": 42, "slot": "secondary"
+    },
+    "smg_vibora": {
+      "name": "SMG Víbora", "class": "smg", "model": "weapon-pack/uzi", "ammo": "9mm",
+      "damage": 18, "magazine": 32, "reloadTacticalSeconds": 1.8, "reloadEmptySeconds": 2.4,
+      "damageFalloff": [[0, 1], [30, 1], [80, 0.65], [150, 0.4]], "slot": "primary"
+    },
+    "smg_vibora_s": {
+      "name": "SMG Víbora-S", "class": "smg", "model": "weapon-pack/uziLongSilencer", "ammo": "9mm",
+      "damage": 17, "magazine": 32, "rpm": 820, "reloadTacticalSeconds": 1.9, "reloadEmptySeconds": 2.5,
+      "damageFalloff": [[0, 1], [30, 1], [80, 0.64], [150, 0.38]], "suppressed": true,
+      "noiseRadiusMeters": 55, "slot": "primary"
+    },
+    "carbine_falcao": {
+      "name": "Carabina Falcão", "class": "smg", "model": "weapon-pack/uziLong", "ammo": "5.56",
+      "damage": 23, "rpm": 700, "muzzleVelocity": 780, "penetration": 0.42, "magazine": 30,
+      "reloadTacticalSeconds": 1.95, "reloadEmptySeconds": 2.6,
+      "damageFalloff": [[0, 1], [50, 1], [140, 0.7], [280, 0.45]], "slot": "primary"
+    },
+    "rifle_m4x": {
+      "name": "Fuzil de Assalto M4X", "class": "rifle", "model": "weapon-pack/machinegun", "ammo": "5.56",
+      "damage": 26, "magazine": 30, "reloadTacticalSeconds": 2.1, "reloadEmptySeconds": 2.95,
+      "damageFalloff": [[0, 1], [70, 1], [180, 0.68], [350, 0.46]], "slot": "primary"
+    },
+    "rifle_m4x_gl": {
+      "name": "Fuzil M4X-GL", "class": "rifle", "model": "weapon-pack/machinegunLauncher", "ammo": "5.56",
+      "damage": 26, "magazine": 30, "rpm": 720, "weightKg": 4.5,
+      "reloadTacticalSeconds": 2.3, "reloadEmptySeconds": 3.1,
+      "damageFalloff": [[0, 1], [70, 1], [180, 0.68], [350, 0.46]],
+      "underbarrel": "gl_40mm", "slot": "primary"
+    },
+    "rifle_lince": {
+      "name": "Fuzil Lince", "class": "rifle", "model": "weapon-pack/machinegun", "ammo": "5.56",
+      "damage": 30, "rpm": 620, "magazine": 25, "penetration": 0.62,
+      "reloadTacticalSeconds": 2.2, "reloadEmptySeconds": 3.0,
+      "damageFalloff": [[0, 1], [90, 1], [220, 0.72], [400, 0.5]],
+      "spread": { "stand": 1.5, "crouch": 1.0, "prone": 0.6, "adsMultiplier": 0.18, "movingMultiplier": 2.4, "jumpingMultiplier": 4.2, "perShotDegrees": 0.4, "maxDegrees": 6 },
+      "slot": "primary"
+    },
+    "marksman_corvo": {
+      "name": "Fuzil Marcador Corvo", "class": "marksman", "model": "weapon-pack/sniperSand", "icon": "weapon-pack/sniper", "ammo": "7.62",
+      "damage": 55, "magazine": 10, "reloadTacticalSeconds": 2.6, "reloadEmptySeconds": 3.4,
+      "damageFalloff": [[0, 1], [150, 1], [350, 0.85], [600, 0.7]], "slot": "primary"
+    },
+    "sniper_tr8": {
+      "name": "Fuzil de Precisão TR-8", "class": "sniper", "model": "weapon-pack/sniper", "ammo": "7.62",
+      "damage": 95, "magazine": 5, "reloadTacticalSeconds": 3.1, "reloadEmptySeconds": 3.9,
+      "damageFalloff": [[0, 1], [200, 1], [500, 0.9], [900, 0.78]], "slot": "primary"
+    },
+    "shotgun_brecha12": {
+      "name": "Escopeta Brecha-12", "class": "shotgun", "model": "weapon-pack/shotgun", "ammo": "12g",
+      "damage": 13, "magazine": 6, "reloadTacticalSeconds": 0.6, "reloadEmptySeconds": 0.8,
+      "damageFalloff": [[0, 1], [12, 1], [30, 0.5], [55, 0.2]], "slot": "primary"
+    },
+    "shotgun_curta": {
+      "name": "Escopeta Curta", "class": "shotgun", "model": "weapon-pack/shotgunShort", "ammo": "12g",
+      "damage": 12, "magazine": 4, "pellets": 9, "pelletSpreadDegrees": 5.2, "rpm": 110,
+      "reloadTacticalSeconds": 0.55, "reloadEmptySeconds": 0.75,
+      "damageFalloff": [[0, 1], [8, 1], [22, 0.45], [45, 0.15]], "slot": "secondary"
+    },
+    "lmg_touro": {
+      "name": "Metralhadora Touro", "class": "lmg", "model": "weapon-pack/machinegun", "ammo": "5.56",
+      "damage": 28, "magazine": 100, "reloadTacticalSeconds": 5.0, "reloadEmptySeconds": 6.2,
+      "damageFalloff": [[0, 1], [80, 1], [200, 0.7], [380, 0.48]],
+      "viewmodel": { "scale": 0.62 }, "slot": "primary"
+    },
+    "launcher_rpx": {
+      "name": "Lança-Foguetes RPX", "class": "launcher", "model": "weapon-pack/rocketlauncher", "ammo": "rocket",
+      "damage": 45, "magazine": 1, "reloadTacticalSeconds": 3.4, "reloadEmptySeconds": 3.4,
+      "damageFalloff": [[0, 1], [1000, 1]],
+      "explosion": { "radiusMeters": 7.5, "damage": 220, "falloffPower": 1.8, "impulse": 22, "vehicleMultiplier": 2.5 },
+      "viewmodel": { "scale": 0.4 }, "slot": "primary"
+    },
+    "gl_40mm": {
+      "name": "Lança-Granadas 40 mm", "class": "launcher", "model": "weapon-pack/machinegunLauncher", "ammo": "40mm",
+      "damage": 20, "magazine": 1, "muzzleVelocity": 76, "rpm": 40,
+      "reloadTacticalSeconds": 2.6, "reloadEmptySeconds": 2.6,
+      "damageFalloff": [[0, 1], [1000, 1]],
+      "explosion": { "radiusMeters": 5.0, "damage": 130, "falloffPower": 1.6, "impulse": 12, "vehicleMultiplier": 1.4 },
+      "slot": "primary"
+    },
+    "flamer_salamandra": {
+      "name": "Lança-Chamas Salamandra", "class": "flamer", "model": "weapon-pack/flamethrower_short", "ammo": "fuel",
+      "damage": 7, "magazine": 100, "reloadTacticalSeconds": 3.2, "reloadEmptySeconds": 3.8,
+      "damageFalloff": [[0, 1], [8, 1], [16, 0.4], [22, 0]],
+      "burn": { "damagePerSecond": 9, "seconds": 4 },
+      "viewmodel": { "scale": 0.42 }, "slot": "primary"
+    },
+    "grenade_frag": {
+      "name": "Granada de Fragmentação", "class": "throwable", "model": "weapon-pack/grenade", "ammo": "none",
+      "damage": 0, "magazine": 1, "carried": 4,
+      "damageFalloff": [[0, 1], [1000, 1]],
+      "explosion": { "radiusMeters": 8.0, "damage": 160, "falloffPower": 1.7, "impulse": 15, "vehicleMultiplier": 0.8 },
+      "slot": "throwable"
+    },
+    "grenade_smoke": {
+      "name": "Granada de Fumaça", "class": "throwable", "model": "weapon-pack/grenadeSmoke", "ammo": "none",
+      "damage": 0, "magazine": 1, "carried": 3, "fuseSeconds": 2.0,
+      "damageFalloff": [[0, 1], [1000, 1]],
+      "smoke": { "radiusMeters": 9, "seconds": 22, "blocksVisionFactor": 0.85 },
+      "slot": "throwable"
+    },
+    "grenade_flash": {
+      "name": "Granada de Efeito Moral", "class": "throwable", "model": "weapon-pack/grenadeFlash", "ammo": "none",
+      "damage": 0, "magazine": 1, "carried": 2, "fuseSeconds": 1.6,
+      "damageFalloff": [[0, 1], [1000, 1]],
+      "flash": { "radiusMeters": 12, "blindSeconds": 4.5, "deafSeconds": 6 },
+      "slot": "throwable"
+    },
+    "knife_lamina": {
+      "name": "Faca Lâmina", "class": "melee", "model": "weapon-pack/knife_sharp", "ammo": "none",
+      "damage": 55, "magazine": 1, "reloadTacticalSeconds": 0, "reloadEmptySeconds": 0,
+      "damageFalloff": [[0, 1], [1000, 1]], "backstabMultiplier": 3.0, "slot": "melee"
+    }
+  },
+
+  "loadout": {
+    "_comment": "Slots do jogador. Teclas 1..5, roda do mouse e Q (arma anterior).",
+    "slots": ["primary", "primary2", "secondary", "melee", "throwable"],
+    "default": {
+      "primary": "rifle_m4x",
+      "primary2": "shotgun_brecha12",
+      "secondary": "pistol_px9",
+      "melee": "knife_lamina",
+      "throwable": "grenade_frag"
+    },
+    "testArsenal": [
+      "rifle_m4x", "rifle_m4x_gl", "rifle_lince", "carbine_falcao",
+      "smg_vibora", "smg_vibora_s", "pistol_px9", "pistol_px9s",
+      "shotgun_brecha12", "shotgun_curta", "marksman_corvo", "sniper_tr8",
+      "lmg_touro", "launcher_rpx", "flamer_salamandra",
+      "grenade_frag", "grenade_smoke", "grenade_flash", "knife_lamina"
+    ]
   }
 }

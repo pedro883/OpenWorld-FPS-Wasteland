@@ -302,6 +302,33 @@ async function collectAudio() {
   return { audio, bytes };
 }
 
+/** Weapon sprites become hotbar icons, keyed by the model id they depict. */
+async function collectIcons() {
+  const src = path.join(RAW, 'UI', 'weapons');
+  const destDir = path.join(OUT, 'icons', 'weapons');
+  const icons = {};
+  let bytes = 0;
+  let files;
+  try {
+    files = (await fs.readdir(src)).filter((f) => f.endsWith('.png'));
+  } catch {
+    return { icons, bytes };
+  }
+  await fs.mkdir(destDir, { recursive: true });
+  for (const file of files) {
+    const base = path.basename(file, '.png');
+    const out = `${base}.webp`;
+    // The renders are small; WebP keeps the whole icon set well under 200 KB.
+    await sharp(path.join(src, file))
+      .resize(128, 128, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 88 })
+      .toFile(path.join(destDir, out));
+    bytes += (await fs.stat(path.join(destDir, out))).size;
+    icons[`weapon-pack/${base}`] = `assets/icons/weapons/${out}`;
+  }
+  return { icons, bytes };
+}
+
 async function dirSize(dir) {
   let total = 0;
   for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
@@ -312,7 +339,7 @@ async function dirSize(dir) {
 }
 
 async function main() {
-  console.log('1/4  Extraindo os subpacotes selecionados do zip…');
+  console.log('1/5  Extraindo os subpacotes selecionados do zip…');
   const extracted = await extractSelected(RAW, { force: process.argv.includes('--force') });
   console.log(
     `     ${extracted.files} arquivos (${humanSize(extracted.bytes)}): ` +
@@ -321,7 +348,7 @@ async function main() {
 
   await fs.mkdir(OUT, { recursive: true });
 
-  console.log('2/4  Mesclando e otimizando por categoria…');
+  console.log('2/5  Mesclando e otimizando por categoria…');
   const models = await listModels();
   const manifest = {
     generatedAt: new Date().toISOString(),
@@ -330,6 +357,7 @@ async function main() {
     models: {},
     animations: {},
     audio: {},
+    icons: {},
   };
 
   let totalRaw = 0;
@@ -360,12 +388,17 @@ async function main() {
     );
   }
 
-  console.log('3/4  Copiando áudio (.ogg da origem, sem reencodificar)…');
+  console.log('3/5  Copiando áudio (.ogg da origem, sem reencodificar)…');
   const { audio, bytes: audioBytes } = await collectAudio();
   manifest.audio = audio;
   console.log(`     ${Object.keys(audio).length} arquivos, ${humanSize(audioBytes)}`);
 
-  console.log('4/4  Escrevendo manifest…');
+  console.log('4/5  Convertendo ícones de arma…');
+  const { icons, bytes: iconBytes } = await collectIcons();
+  manifest.icons = icons;
+  console.log(`     ${Object.keys(icons).length} ícones, ${humanSize(iconBytes)}`);
+
+  console.log('5/5  Escrevendo manifest…');
   await fs.writeFile(
     path.join(OUT, 'manifest.json'),
     JSON.stringify(manifest, null, 2),

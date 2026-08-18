@@ -4,46 +4,10 @@ import ballisticsCfg from '../../config/ballistics.json';
 import type { BallisticsSystem } from './ballistics';
 import type { Stance } from '../physics/characterController';
 import type { RAPIER } from '../physics/world';
+import { AmmoPouch, weaponDef, type WeaponDef } from './arsenal';
 
-export interface WeaponDef {
-  name: string;
-  class: string;
-  model: string;
-  caliber: string;
-  damage: number;
-  damageFalloff: Array<[number, number]>;
-  muzzleVelocity: number;
-  penetration: number;
-  rpm: number;
-  fireModes: string[];
-  burstCount: number;
-  magazine: number;
-  reloadTacticalSeconds: number;
-  reloadEmptySeconds: number;
-  zeroMeters: number;
-  noiseRadiusMeters: number;
-  weightKg: number;
-  spread: {
-    stand: number;
-    crouch: number;
-    prone: number;
-    adsMultiplier: number;
-    movingMultiplier: number;
-    jumpingMultiplier: number;
-    perShotDegrees: number;
-    maxDegrees: number;
-  };
-  recoil: {
-    verticalPattern: number[];
-    horizontalPattern: number[];
-    verticalDegrees: number;
-    horizontalDegrees: number;
-    recoverySeconds: number;
-    recoveryFraction: number;
-    viewKick: number;
-    adsMultiplier: number;
-  };
-}
+export type { WeaponDef } from './arsenal';
+export { weaponDef, allWeaponIds } from './arsenal';
 
 export interface ShooterState {
   stance: Stance;
@@ -61,29 +25,20 @@ export interface ShooterState {
 export interface RecoilImpulse {
   pitch: number;
   yaw: number;
-}
-
-export function weaponDef(id: string): WeaponDef {
-  const def = (weaponConfig.weapons as unknown as Record<string, WeaponDef>)[id];
-  if (!def) throw new Error(`arma desconhecida em config/weapons.json: ${id}`);
-  return def;
-}
-
-export function weaponIds(): string[] {
-  return Object.keys(weaponConfig.weapons);
+  /** Rounds actually launched — shotguns fire a whole pellet cloud per shot. */
+  projectiles: number;
 }
 
 const DEG = Math.PI / 180;
 
 /**
  * Weapon state machine: fire modes, cadence, dispersion, a memorisable recoil
- * pattern and two reload timings. Every number comes from config/weapons.json —
- * this class only sequences them.
+ * pattern, reloads and the projectile kind. Every number comes from
+ * config/weapons.json — this class only sequences them.
  */
 export class Weapon {
   readonly def: WeaponDef;
   ammo: number;
-  reserve: number;
   fireModeIndex = 0;
 
   private cooldown = 0;
@@ -96,16 +51,25 @@ export class Weapon {
   private shotIndex = 0;
   private settleTimer = 0;
   private bloom = 0;
+  /** Bolt/pump cycling, which blocks firing but is not a reload. */
+  private cycleTimer = 0;
 
   constructor(
     id: string,
     private readonly ballistics: BallisticsSystem,
     private readonly owner: unknown,
-    reserveMagazines = 6,
+    private readonly pouch: AmmoPouch,
   ) {
     this.def = weaponDef(id);
-    this.ammo = this.def.magazine;
-    this.reserve = this.def.magazine * reserveMagazines;
+    this.ammo = Math.min(this.def.magazine, this.pouch.take(this.def, this.def.magazine));
+  }
+
+  get id(): string {
+    return this.def.id;
+  }
+
+  get reserve(): number {
+    return this.pouch.reserve(this.def);
   }
 
   get fireMode(): string {
@@ -116,12 +80,16 @@ export class Weapon {
     return this.reloadTimer > 0;
   }
 
+  get isCycling(): boolean {
+    return this.cycleTimer > 0;
+  }
+
   get reloadProgress(): number {
     if (this.reloadTimer <= 0) return 1;
     const total = this.reloadWasEmpty
       ? this.def.reloadEmptySeconds
       : this.def.reloadTacticalSeconds;
-    return 1 - this.reloadTimer / total;
+    return total > 0 ? 1 - this.reloadTimer / total : 1;
   }
 
   cycleFireMode(): string {
@@ -176,6 +144,7 @@ export class Weapon {
       if (this.reloadTimer <= 0) this.finishReload();
     }
     this.cooldown = Math.max(0, this.cooldown - dt);
+    this.cycleTimer = Math.max(0, this.cycleTimer - dt);
 
     const recover = weaponConfig.defaults.spreadRecoverPerSecond * dt;
     this.bloom = Math.max(0, this.bloom - recover);
@@ -208,7 +177,7 @@ export class Weapon {
     direction: THREE.Vector3,
     state: ShooterState,
   ): RecoilImpulse | null {
-    if (this.reloadTimer > 0 || this.cooldown > 0) return null;
+    if (this.reloadTimer > 0 || this.cooldown > 0 || this.cycleTimer > 0) return null;
     if (!this.triggerAllows()) return null;
     if (this.ammo <= 0) {
       this.burstRemaining = 0;
@@ -216,23 +185,13 @@ export class Weapon {
     }
 
     const spread = this.spreadDegrees(state);
-    const aim = this.disperse(direction, spread);
-
-    const fired = this.ballistics.fire({
-      origin: origin.clone(),
-      direction: aim,
-      muzzleVelocity: this.def.muzzleVelocity,
-      damage: this.def.damage,
-      falloff: this.def.damageFalloff,
-      penetration: this.def.penetration,
-      shooter: this.owner,
-      tracer: this.shotIndex % ballisticsCfg.tracer.everyNthShot === 0,
-      ignore: state.ignore,
-    });
-    if (!fired) return null;
+    const launched = this.launch(origin, direction, spread, state);
+    if (launched === 0) return null;
 
     this.ammo--;
     this.cooldown = 60 / this.def.rpm;
+    // A bolt or pump gun must cycle before the next shot, on top of cadence.
+    this.cycleTimer = this.def.boltActionSeconds;
     this.bloom = Math.min(
       this.def.spread.maxDegrees,
       this.bloom + this.def.spread.perShotDegrees,
@@ -246,11 +205,59 @@ export class Weapon {
     const recoil = this.recoilForShot(state.ads);
     this.shotIndex++;
     this.settleTimer = 0;
-    return recoil;
+    return { ...recoil, projectiles: launched };
+  }
+
+  /** Emits the projectiles for one trigger event. Returns how many left the barrel. */
+  private launch(
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    spread: number,
+    state: ShooterState,
+  ): number {
+    const def = this.def;
+
+    if (def.projectile === 'melee') {
+      const hit = this.ballistics.instantHit(
+        origin,
+        direction.clone().normalize(),
+        def.reachMeters,
+        def.damage,
+        this.owner,
+        state.ignore,
+      );
+      // A swing always costs the animation, whether or not it connected.
+      return hit ? 1 : 1;
+    }
+
+    const count = Math.max(1, def.pellets);
+    let launched = 0;
+    for (let i = 0; i < count; i++) {
+      // Pellets get their own tight cone on top of the weapon's dispersion.
+      const cone = count > 1 ? spread + def.pelletSpreadDegrees : spread;
+      const aim = this.disperse(direction, cone);
+      const ok = this.ballistics.fire({
+        origin: origin.clone(),
+        direction: aim,
+        muzzleVelocity: def.muzzleVelocity,
+        damage: def.damage,
+        falloff: def.damageFalloff,
+        penetration: def.penetration,
+        shooter: this.owner,
+        tracer: count === 1 && this.shotIndex % ballisticsCfg.tracer.everyNthShot === 0,
+        ignore: state.ignore,
+        explosion: def.explosion,
+        kind: def.projectile,
+        fuseSeconds: def.projectile === 'thrown' ? def.fuseSeconds : 0,
+        model: def.projectile === 'thrown' || def.projectile === 'rocket' ? def.model : null,
+      });
+      if (ok) launched++;
+    }
+    return launched;
   }
 
   /** Deterministic per-shot kick, so the pattern can be learned and countered. */
-  private recoilForShot(ads: boolean): RecoilImpulse {
+  private recoilForShot(ads: boolean): { pitch: number; yaw: number } {
     const r = this.def.recoil;
     const i = Math.min(this.shotIndex, r.verticalPattern.length - 1);
     const scale = ads ? r.adsMultiplier : 1;
@@ -261,8 +268,11 @@ export class Weapon {
   }
 
   reload(): boolean {
-    if (this.reloadTimer > 0 || this.reserve <= 0 || this.ammo >= this.def.magazine) return false;
+    if (this.reloadTimer > 0) return false;
+    if (this.ammo >= this.def.magazine) return false;
+    if (this.reserve <= 0) return false;
     this.reloadWasEmpty = this.ammo === 0;
+    // Shell-fed guns top up one round at a time and can be interrupted.
     this.reloadTimer = this.reloadWasEmpty
       ? this.def.reloadEmptySeconds
       : this.def.reloadTacticalSeconds;
@@ -270,22 +280,49 @@ export class Weapon {
     return true;
   }
 
-  private finishReload(): void {
-    // A tactical reload keeps the round in the chamber; an empty one does not.
-    const capacity = this.def.magazine + (this.reloadWasEmpty ? 0 : this.ammo > 0 ? 1 : 0);
-    const wanted = Math.min(capacity, this.def.magazine + 1) - this.ammo;
-    const taken = Math.min(wanted, this.reserve);
-    this.ammo += taken;
-    this.reserve -= taken;
+  /** Aborts a shell-by-shell reload so the player can fire what is loaded. */
+  cancelReload(): boolean {
+    if (this.reloadTimer <= 0 || !this.def.reloadPerShell) return false;
     this.reloadTimer = 0;
+    return true;
+  }
+
+  private finishReload(): void {
+    const def = this.def;
+    if (def.reloadPerShell) {
+      // One shell per cycle; re-arm the timer until the tube is full or dry.
+      const taken = this.pouch.take(def, 1);
+      this.ammo = Math.min(def.magazine, this.ammo + taken);
+      this.reloadTimer = 0;
+      if (taken > 0 && this.ammo < def.magazine && this.reserve > 0) {
+        this.reloadWasEmpty = false;
+        this.reloadTimer = def.reloadTacticalSeconds;
+      }
+      return;
+    }
+    const wanted = def.magazine - this.ammo;
+    this.ammo += this.pouch.take(def, wanted);
+    this.reloadTimer = 0;
+  }
+
+  /** Called when the weapon is holstered, so a partial reload does not persist. */
+  onHolster(): void {
+    this.reloadTimer = 0;
+    this.cycleTimer = 0;
+    this.burstRemaining = 0;
+    this.triggerHeld = false;
+    this.triggerWasHeld = false;
+    this.shotIndex = 0;
+    this.bloom = 0;
   }
 
   get debugText(): string {
     return [
-      `${this.def.name}`,
+      `${this.def.name}  [${this.def.class}]`,
       `munição ${this.ammo}/${this.def.magazine}  reserva ${this.reserve}`,
       `modo ${this.fireMode}  bloom ${this.bloom.toFixed(2)}°  tiro #${this.shotIndex}`,
       this.isReloading ? `recarregando ${(this.reloadProgress * 100).toFixed(0)}%` : '',
+      this.isCycling ? 'ferrolho' : '',
     ]
       .filter(Boolean)
       .join('\n');

@@ -14,6 +14,9 @@ import { ZIP_PATH, parseEntry } from './zip-utils.mjs';
 import { SELECTED_3D, SELECTED_AUDIO } from './asset-selection.mjs';
 
 const UI_WANTED = [
+  // Kenney ships a rendered sprite of every weapon; they are exactly what the
+  // hotbar needs, so no icon has to be drawn by hand.
+  { prefix: '3D assets/Weapon Pack/Sprites/Render/', exts: ['.png'], out: 'weapons' },
   { prefix: 'UI assets/UI Pack/PNG/', exts: ['.png'] },
   { prefix: 'Icons/Game Icons/PNG/White/2x/', exts: ['.png'] },
   { prefix: 'Icons/Input Prompts/Keyboard & Mouse/Default/', exts: ['.png'] },
@@ -25,8 +28,20 @@ export function classify(name) {
   const { category, pack, rest } = parseEntry(name);
   const ext = path.extname(name).toLowerCase();
 
-  if (category === '3D assets' && SELECTED_3D[pack]) {
-    if (!rest.startsWith('Models/')) return null;
+  // UI rules run first: some of them live *inside* a 3D pack (the weapon
+  // sprites), and the model rules below would reject those paths outright.
+  for (const want of UI_WANTED) {
+    if (name.startsWith(want.prefix) && want.exts.includes(ext)) {
+      return {
+        kind: 'ui',
+        pack,
+        base: path.basename(name, ext),
+        out: path.join('UI', want.out ?? '', name.slice(want.prefix.length)),
+      };
+    }
+  }
+
+  if (category === '3D assets' && SELECTED_3D[pack] && rest.startsWith('Models/')) {
 
     // Kenney GLBs reference their colormap by relative URI, so the texture has
     // to land in `<pack>/Textures/` next to the flattened models. The same PNG
@@ -47,12 +62,6 @@ export function classify(name) {
 
   if (category === 'Audio' && SELECTED_AUDIO[pack] && ext === '.ogg') {
     return { kind: 'audio', pack, base: path.basename(name, '.ogg'), out: path.join('Audio', pack, path.basename(name)) };
-  }
-
-  for (const want of UI_WANTED) {
-    if (name.startsWith(want.prefix) && want.exts.includes(ext)) {
-      return { kind: 'ui', pack, base: path.basename(name, ext), out: path.join('UI', name.slice(want.prefix.length)) };
-    }
   }
 
   if (name.startsWith('3D assets/') && path.basename(name) === 'License.txt' && SELECTED_3D[pack]) {

@@ -5,6 +5,10 @@ import weaponConfig from '../../config/weapons.json';
 
 export interface ViewmodelState {
   ads: boolean;
+  /** 0..1 through a reload; drives the dip-and-roll animation. */
+  reload?: number;
+  /** 0..1 through a weapon switch; drives the holster dip. */
+  switching?: number;
   /** Horizontal speed in m/s, drives the walk bob. */
   speed: number;
   grounded: boolean;
@@ -32,6 +36,8 @@ export class Viewmodel {
   private readonly swayRotation = new THREE.Vector2();
   private bobPhase = 0;
   private adsBlend = 0;
+  private readonly animOffset = new THREE.Vector3();
+  private readonly animRotation = new THREE.Vector3();
 
   /** Recoil applied to the model, decaying back to rest. */
   private readonly recoilOffset = new THREE.Vector3();
@@ -45,7 +51,15 @@ export class Viewmodel {
   }
 
   async setWeapon(weaponId: string): Promise<void> {
-    const def = (weaponConfig.weapons as Record<string, { model: string }>)[weaponId];
+    const def = (
+      weaponConfig.weapons as Record<
+        string,
+        {
+          model: string;
+          viewmodel?: { hip?: number[]; ads?: number[]; adsDistance?: number; scale?: number };
+        }
+      >
+    )[weaponId];
     if (!def) throw new Error(`arma desconhecida em config/weapons.json: ${weaponId}`);
 
     if (this.weapon) {
@@ -57,7 +71,7 @@ export class Viewmodel {
     // The viewmodel is deliberately smaller than the world model: it sits
     // centimetres from the lens, where true scale would fill the screen.
     const model = await assets.instantiate(def.model, {
-      scale: assets.scaleFor(def.model) * vm.scale,
+      scale: assets.scaleFor(def.model) * (def.viewmodel?.scale ?? vm.scale),
     });
     model.rotation.set(
       (vm.rotationDegrees[0]! * Math.PI) / 180,
@@ -74,10 +88,22 @@ export class Viewmodel {
       mesh.frustumCulled = false;
     });
 
-    this.hip.fromArray(vm.hip as number[]);
-    this.ads.fromArray(vm.ads as number[]);
+    this.hip.fromArray((def.viewmodel?.hip ?? vm.hip) as number[]);
     this.root.add(model);
     this.weapon = model;
+
+    // The ADS pose is *derived*, not hand-tuned: measure the model and place it
+    // so its centreline is on the optical axis and the top of the receiver — the
+    // only thing resembling a sight on these low-poly guns — sits at the
+    // crosshair. Hand-tuning per weapon drifts the moment the arsenal grows.
+    const box = new THREE.Box3().setFromObject(model);
+    const centre = box.getCenter(new THREE.Vector3());
+    this.ads.set(
+      -centre.x,
+      -box.max.y - (vm.adsSightDrop ?? 0),
+      (def.viewmodel?.adsDistance ?? vm.adsDistance ?? -0.55),
+    );
+    if (def.viewmodel?.ads) this.ads.fromArray(def.viewmodel.ads);
   }
 
   addRecoil(vertical: number, horizontal: number): void {
@@ -115,16 +141,48 @@ export class Viewmodel {
     this.recoilOffset.multiplyScalar(1 - recover);
     this.recoilPitch *= 1 - recover;
 
+    this.applyActionAnimation(state);
+
     this.root.position.set(
-      this.basePosition.x + this.swayOffset.x + bobX + this.recoilOffset.x,
-      this.basePosition.y + this.swayOffset.y + bobY,
-      this.basePosition.z + this.recoilOffset.z,
+      this.basePosition.x + this.swayOffset.x + bobX + this.recoilOffset.x + this.animOffset.x,
+      this.basePosition.y + this.swayOffset.y + bobY + this.animOffset.y,
+      this.basePosition.z + this.recoilOffset.z + this.animOffset.z,
     );
     this.root.rotation.set(
-      this.swayRotation.x + this.recoilPitch * 0.35,
-      this.swayRotation.y,
-      this.swayRotation.y * 0.4,
+      this.swayRotation.x + this.recoilPitch * 0.35 + this.animRotation.x,
+      this.swayRotation.y + this.animRotation.y,
+      this.swayRotation.y * 0.4 + this.animRotation.z,
     );
+  }
+
+  /**
+   * Reload and weapon-switch animation, done procedurally.
+   *
+   * The Kenney weapons are static meshes with no magazine bone and no reload
+   * clip, so there is nothing to play back. Dipping the weapon out of frame and
+   * rolling it towards the off hand reads as a reload at this art scale, and it
+   * costs no assets.
+   */
+  private applyActionAnimation(state: ViewmodelState): void {
+    const vm = defaults;
+    this.animOffset.set(0, 0, 0);
+    this.animRotation.set(0, 0, 0);
+
+    const switching = state.switching ?? 0;
+    if (switching > 0) {
+      this.animOffset.y -= vm.switchDip * switching;
+      this.animRotation.x += 0.5 * switching;
+      return;
+    }
+
+    const reload = state.reload ?? 0;
+    if (reload <= 0 || reload >= 1) return;
+    // Down fast, hold, back up: a sine over the middle of the window.
+    const curve = Math.sin(Math.min(1, reload * 1.15) * Math.PI);
+    this.animOffset.y -= vm.reloadDip * curve;
+    this.animOffset.x -= vm.reloadDip * 0.35 * curve;
+    this.animRotation.z += (vm.reloadRollDegrees * Math.PI) / 180 * curve;
+    this.animRotation.x += 0.28 * curve;
   }
 
   /**

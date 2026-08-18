@@ -10,6 +10,7 @@ como stub visível, nunca como TODO silencioso.
 | 1. Pipeline de assets | ✅ concluída |
 | 2. Jogador | ✅ concluída |
 | 3. Combate base | ✅ concluída |
+| 3.5 Arsenal (adiantado da fase 8) | ✅ concluída |
 | 4. Mundo | ⏳ em andamento |
 | 5. IA | ⬜ |
 | 6–9 | fora do escopo desta execução |
@@ -287,3 +288,67 @@ O painel embutido do navegador estrangula o `requestAnimationFrame` enquanto um 
 roda, o que fazia medições feitas com `await` parecerem "sem impacto algum". Os testes
 de balística passaram a **avançar o sistema manualmente** (`ballistics.update(1/60)` em
 laço), o que é determinístico e imune a isso.
+
+---
+
+## Fase 3.5 — Arsenal ✅ *(adiantada da fase 8, a pedido)*
+
+A spec coloca o arsenal completo na fase 8. Foi puxado para cá porque a base de
+combate estava fresca e a IA da fase 5 precisa de armas variadas de qualquer forma.
+
+**Entregue**
+
+- **19 armas** do Weapon Pack, com nomes fictícios (seção 9): pistolas PX-9 e PX-9
+  Silenciada, SMG Víbora e Víbora-S, Carabina Falcão, Fuzil M4X / M4X-GL / Lince,
+  Marcador Corvo, Precisão TR-8, Escopetas Brecha-12 e Curta, Metralhadora Touro,
+  Lança-Foguetes RPX, Lança-Granadas 40 mm, Lança-Chamas Salamandra, granadas de
+  fragmentação/fumaça/efeito moral e Faca Lâmina.
+- `config/weapons.json` com **herança por classe**: cada arma declara só o que difere
+  do seu `classDefaults`. Quinze blocos completos de dispersão e recuo repetidos
+  seriam inmantíveis.
+- `combat/arsenal.ts` — resolução das definições e **munição em pool por calibre**:
+  duas armas 9 mm dividem a mesma reserva, o que dá peso à escolha do que carregar.
+  Arremessáveis usam contagem discreta em vez de pool.
+- **Tipos de disparo**: automático, rajada de 3, semi, ferrolho (TR-8, 1,15 s de
+  cicloagem), bombeamento e **múltiplos bagos** (escopetas lançam 8–9 projéteis por
+  tiro, cada um com seu próprio cone).
+- **Explosivos**: foguetes detonam no contato, granadas **quicam** e detonam no
+  estopim. `combat/explosions.ts` aplica dano em área com queda por
+  `(1 − d/raio)^expoente` e **corta o dano a 25% quando não há linha de visão** — uma
+  explosão que ignora paredes transforma todo foguete em morte garantida.
+- `entities/loadout.ts` — troca de arma com **custo de tempo** (0,55 s): a arma atual
+  coldreia, o modelo troca no fundo do mergulho e a nova sobe. Não se atira durante a
+  troca. Teclas 1–9, roda do mouse e Q (arma anterior).
+- **Hotbar** com os *sprites renderizados da própria Kenney* como ícones, indexados
+  pelo mesmo id de modelo que o viewmodel 3D usa — os dois não podem divergir.
+- **Animação de recarga e troca procedural**: as armas Kenney são malhas estáticas,
+  sem osso de carregador e sem clipe de recarga, então não há o que reproduzir.
+  Mergulhar a arma para fora do quadro e rolá-la para a mão de apoio lê como recarga
+  nessa escala de arte, e não custa asset nenhum.
+
+**Aceite verificado**
+
+| O que | Medido |
+|---|---|
+| Troca de arma pela tecla | `4` → índice 3 (Carabina Falcão), 0,55 s |
+| Escopeta | 8 bagos lançados, 5 acertos em 3 zonas distintas, alvo a 61% |
+| Explosão a 1 / 4 / 7 m | 170 / 56 / 2 de dano — queda conforme configurada |
+| Explosão atrás de concreto | 22 em vez de ~130 (checagem de cobertura) |
+| Autodano | jogador a 2 m levou 100 na perna = 220 × (1−2/7,5)^1,8 × 0,8 ✔ |
+| Foguete | voo de 0,23 s a 90 m/s, com queda visível |
+| Ícones | 19/19 resolvidos (`sniperSand` sem sprite → cai para `sniper`) |
+
+**Correção de mira (ADS)**
+
+A pose de mira estava desalinhada. Em vez de calibrar 19 offsets à mão, ela passou a
+ser **derivada do bounding box do modelo** no carregamento: a arma é centrada no eixo
+óptico e o topo do receptor — a única coisa parecida com uma alça de mira nesses
+modelos low-poly — vai para a altura do retículo. Isso se auto-corrige para qualquer
+arma nova.
+
+**Pendente desta frente**
+
+Acessórios modulares (miras, supressores acopláveis, empunhaduras) do Blaster Kit,
+fumaça e cegueira das granadas não-letais, e dano por queimadura contínua do
+lança-chamas — os campos já existem em `config/weapons.json`, mas o efeito não foi
+implementado.

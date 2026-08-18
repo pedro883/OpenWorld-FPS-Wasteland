@@ -34,6 +34,7 @@ export interface Manifest {
   models: Record<string, ModelEntry>;
   animations: Record<string, string[]>;
   audio: Record<string, string>;
+  icons: Record<string, string>;
 }
 
 interface LoadedCategory {
@@ -202,6 +203,11 @@ class AssetManager {
       (entry.bounds.max[1] - entry.bounds.min[1]) * s,
       (entry.bounds.max[2] - entry.bounds.min[2]) * s,
     );
+  }
+
+  /** Hotbar sprite for a model id, produced by the asset pipeline. */
+  iconUrl(id: string): string | undefined {
+    return this.manifest?.icons?.[id];
   }
 
   audioUrl(id: string): string | undefined {

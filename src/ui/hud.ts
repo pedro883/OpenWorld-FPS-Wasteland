@@ -1,6 +1,9 @@
 import { ZONES, type Zone } from '../entities/health';
 import type { Player } from '../entities/player';
 import type { Weapon } from '../combat/weapon';
+import type { Loadout } from '../entities/loadout';
+import { assets } from '../core/assets';
+import { AMMO_TYPES } from '../combat/arsenal';
 
 /** Rough body diagram, in percentages of the HUD silhouette box. */
 const ZONE_BOXES: Record<Zone, { left: number; top: number; width: number; height: number }> = {
@@ -30,6 +33,9 @@ export class Hud {
   private readonly ammoReserve: HTMLSpanElement;
   private readonly ammoMode: HTMLDivElement;
   private readonly reloadBar: HTMLDivElement;
+  private readonly hotbar: HTMLDivElement;
+  private readonly hotbarSlots: HTMLDivElement[] = [];
+  private hotbarSignature = '';
 
   constructor() {
     this.root = document.createElement('div');
@@ -103,6 +109,10 @@ export class Hud {
     this.ammoEl.append(ammoLine, this.ammoMode, reloadTrack);
     this.root.appendChild(this.ammoEl);
 
+    this.hotbar = document.createElement('div');
+    this.hotbar.id = 'hud-hotbar';
+    this.root.appendChild(this.hotbar);
+
     this.hintEl = document.createElement('div');
     this.hintEl.id = 'hud-hint';
     this.root.appendChild(this.hintEl);
@@ -150,11 +160,56 @@ export class Hud {
       this.ammoCount.classList.toggle('low', weapon.ammo > 0 && weapon.ammo <= weapon.def.magazine * 0.25);
       this.ammoReserve.textContent = ` / ${weapon.reserve}`;
       const mode = { auto: 'AUTO', burst: 'RAJADA', single: 'SEMI' }[weapon.fireMode] ?? weapon.fireMode;
-      this.ammoMode.textContent = `${weapon.def.name}   ${mode}`;
+      const calibre = AMMO_TYPES[weapon.def.ammo]?.name ?? weapon.def.ammo;
+      this.ammoMode.textContent = `${weapon.def.name}   ${mode}   ${calibre}`;
       this.reloadBar.style.width = weapon.isReloading ? `${weapon.reloadProgress * 100}%` : '0%';
     } else {
       this.ammoEl.style.display = 'none';
     }
+  }
+
+  /**
+   * Weapon hotbar. Icons are the Kenney sprite renders of each weapon, keyed by
+   * the same model id the 3D viewmodel uses, so the two can never disagree.
+   */
+  updateHotbar(loadout: Loadout): void {
+    const signature = loadout
+      .defs()
+      .map((d) => d.id)
+      .join('|');
+    if (signature !== this.hotbarSignature) {
+      this.hotbarSignature = signature;
+      this.hotbar.textContent = '';
+      this.hotbarSlots.length = 0;
+      loadout.defs().forEach((def, i) => {
+        const slot = document.createElement('div');
+        slot.className = 'hotbar-slot';
+
+        const key = document.createElement('span');
+        key.className = 'hotbar-key';
+        key.textContent = String(i + 1);
+
+        const icon = document.createElement('img');
+        icon.className = 'hotbar-icon';
+        icon.alt = def.name;
+        const url = assets.iconUrl(def.icon);
+        if (url) icon.src = url;
+
+        const label = document.createElement('span');
+        label.className = 'hotbar-label';
+        label.textContent = def.name;
+
+        slot.append(key, icon, label);
+        this.hotbar.appendChild(slot);
+        this.hotbarSlots.push(slot);
+      });
+    }
+
+    this.hotbarSlots.forEach((slot, i) => {
+      const weapon = loadout.weaponAt(i);
+      slot.classList.toggle('active', i === loadout.currentIndex);
+      slot.classList.toggle('empty', !!weapon && weapon.ammo === 0 && weapon.reserve === 0);
+    });
   }
 
   /** Brief red tick on the crosshair confirming a hit landed. */

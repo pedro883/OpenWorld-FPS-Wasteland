@@ -5,6 +5,7 @@ import { BULLET_FILTER } from '../physics/layers';
 import type { RAPIER } from '../physics/world';
 import type { PhysicsWorld, RayHit } from '../physics/world';
 import { isBodyOwner, materialDef, ownerMaterial } from './types';
+import type { ExplosionDef, ProjectileKind } from './arsenal';
 
 export interface ShotSpec {
   origin: THREE.Vector3;
@@ -19,6 +20,13 @@ export interface ShotSpec {
   tracer: boolean;
   /** The shooter's own collider, so a muzzle inside the body cannot self-hit. */
   ignore?: RAPIER.Collider;
+  /** Detonation payload; rockets explode on contact, thrown ones on fuse. */
+  explosion?: ExplosionDef | null;
+  kind?: ProjectileKind;
+  /** Seconds until a thrown projectile detonates regardless of contact. */
+  fuseSeconds?: number;
+  /** Model id to render in flight (rockets and grenades are visible). */
+  model?: string | null;
 }
 
 export interface ImpactEvent {
@@ -28,6 +36,12 @@ export interface ImpactEvent {
   /** True when the round went through rather than stopping. */
   penetrated: boolean;
   ricocheted: boolean;
+}
+
+export interface ExplosionEvent {
+  point: THREE.Vector3;
+  def: ExplosionDef;
+  shooter: unknown;
 }
 
 export interface DamageEvent {
@@ -54,6 +68,10 @@ interface Projectile {
   shooter: unknown;
   tracer: boolean;
   ignore: RAPIER.Collider | undefined;
+  explosion: ExplosionDef | null;
+  kind: ProjectileKind;
+  fuse: number;
+  model: string | null;
 }
 
 /** Linear interpolation over the weapon's [distance, multiplier] table. */
@@ -89,6 +107,7 @@ export class BallisticsSystem {
   onDamage: ((e: DamageEvent) => void) | null = null;
   /** Called with the segment of every round, for AI suppression. */
   onPass: ((from: THREE.Vector3, to: THREE.Vector3, shooter: unknown) => void) | null = null;
+  onExplosion: ((e: ExplosionEvent) => void) | null = null;
 
   constructor(
     private readonly physics: PhysicsWorld,
@@ -110,11 +129,17 @@ export class BallisticsSystem {
         shooter: null,
         tracer: false,
         ignore: undefined,
+        explosion: null,
+        kind: 'bullet' as ProjectileKind,
+        fuse: 0,
+        model: null,
       }),
       (p) => {
         p.active = false;
         p.shooter = null;
         p.ignore = undefined;
+        p.explosion = null;
+        p.model = null;
         p.falloff = [];
       },
       cfg.maxProjectiles,
@@ -142,6 +167,10 @@ export class BallisticsSystem {
     p.shooter = spec.shooter;
     p.tracer = spec.tracer;
     p.ignore = spec.ignore;
+    p.explosion = spec.explosion ?? null;
+    p.kind = spec.kind ?? 'bullet';
+    p.fuse = spec.fuseSeconds ?? 0;
+    p.model = spec.model ?? null;
     return true;
   }
 
@@ -156,7 +185,15 @@ export class BallisticsSystem {
   /** Returns false when the round is spent. */
   private step(p: Projectile, dt: number): boolean {
     p.age += dt;
-    if (p.age > cfg.maxFlightSeconds) return false;
+    // A thrown charge detonates on its fuse wherever it happens to be.
+    if (p.fuse > 0 && p.age >= p.fuse) {
+      this.detonate(p, p.pos);
+      return false;
+    }
+    if (p.age > cfg.maxFlightSeconds) {
+      if (p.kind === 'thrown') this.detonate(p, p.pos);
+      return false;
+    }
 
     // Quadratic drag: a = -k |v| v. At rifle speeds this is the dominant loss,
     // and it is what makes time-of-flight grow non-linearly with range.
@@ -223,6 +260,24 @@ export class BallisticsSystem {
     const materialName = ownerMaterial(owner);
     const material = materialDef(materialName);
     const damage = p.damage * falloffAt(p.falloff, p.travelled);
+
+    if (p.kind === 'rocket' && p.explosion) {
+      this.detonate(p, point);
+      return { stop: true, advance: 0, continueFrom: point };
+    }
+
+    if (p.kind === 'thrown') {
+      // Grenades bounce and keep their fuse; they never stop on contact.
+      const bounced = dir.clone().reflect(normal).normalize();
+      p.vel.copy(bounced).multiplyScalar(p.vel.length() * 0.42);
+      this.onImpact?.({ point, normal, material: materialName, penetrated: false, ricocheted: true });
+      return {
+        stop: false,
+        advance: 0.03,
+        continueFrom: point.clone().addScaledVector(bounced, 0.03),
+        newDirection: bounced,
+      };
+    }
 
     if (isBodyOwner(owner)) {
       const result = owner.entity.health.applyDamage(owner.zone, damage);
@@ -295,6 +350,52 @@ export class BallisticsSystem {
     const inside = point.clone().addScaledVector(dir, 0.005);
     const exit = this.physics.raycastCollider(hit.collider, inside, dir, MAX);
     return exit === null ? MAX : Math.min(MAX, exit + 0.005);
+  }
+
+  /** Emits the explosion event; the explosion system applies area damage. */
+  private detonate(p: Projectile, at: THREE.Vector3): void {
+    if (!p.explosion) return;
+    this.onExplosion?.({ point: at.clone(), def: p.explosion, shooter: p.shooter });
+  }
+
+  /**
+   * Immediate raycast strike for melee. Shares the collider-owner resolution
+   * with projectiles, so a knife hits the same damage zones a bullet does.
+   */
+  instantHit(
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    range: number,
+    damage: number,
+    shooter: unknown,
+    ignore?: RAPIER.Collider,
+  ): boolean {
+    const hit = this.physics.raycast(origin, direction, range, BULLET_FILTER, ignore);
+    if (!hit) return false;
+    const point = new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z);
+    const normal = new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z);
+    const owner = hit.userData;
+    if (isBodyOwner(owner)) {
+      const result = owner.entity.health.applyDamage(owner.zone, damage);
+      owner.entity.onDamaged(owner.zone, result.applied, direction);
+      this.onDamage?.({
+        entity: owner.entity,
+        zone: owner.zone,
+        amount: result.applied,
+        distance: hit.distance,
+        point,
+        direction: direction.clone(),
+        shooter,
+      });
+    }
+    this.onImpact?.({
+      point,
+      normal,
+      material: ownerMaterial(owner),
+      penetrated: false,
+      ricocheted: false,
+    });
+    return true;
   }
 
   clear(): void {

@@ -58,7 +58,10 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 | `R` | Recarregar |
 | `B` | Trocar modo de tiro (auto / rajada / semi) |
 | `F` | Bandagem |
-| `1`–`6` | Aplicar dano de teste na zona (cabeça, torso, braços, pernas) |
+| `1`–`9` | Trocar de arma (hotbar) |
+| Roda do mouse | Arma anterior/próxima |
+| `Q` | Voltar à arma anterior |
+| `Shift`+`1`–`6` | Aplicar dano de teste na zona (cabeça, torso, braços, pernas) |
 | `K` | Renascer e restaurar os alvos |
 | `Espaço` | Pular / subir (freecam) |
 | `Ctrl` | Descer (freecam) |

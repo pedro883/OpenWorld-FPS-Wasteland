@@ -11,13 +11,15 @@ import { Layer } from '../physics/world';
 import { debugOverlay } from '../debug/overlay';
 import { BallisticsSystem } from '../combat/ballistics';
 import { ImpactEffects, MuzzleFlash } from '../combat/impacts';
-import { Weapon } from '../combat/weapon';
+import { Loadout } from '../entities/loadout';
+import { ExplosionSystem } from '../combat/explosions';
+import { LOADOUT } from '../combat/arsenal';
 import { World as WorldCfg } from '../core/config';
 
 // Clear of every obstacle, facing -Z so the whole course is ahead on spawn.
 const START = new THREE.Vector3(4, 1, 24);
 
-/** Keys 1..6 damage the matching zone, so the wound model can be exercised. */
+/** Shift+1..6 wounds the matching zone, so the damage model can be exercised. */
 const DAMAGE_KEYS: Array<[string, Zone]> = [
   ['Digit1', 'head'],
   ['Digit2', 'torso'],
@@ -45,7 +47,8 @@ export class PlayerTestScene implements Scene {
   private player!: Player;
   private viewmodel!: Viewmodel;
   private hud!: Hud;
-  private weapon!: Weapon;
+  private loadout!: Loadout;
+  private explosions!: ExplosionSystem;
   private ballistics!: BallisticsSystem;
   private effects!: ImpactEffects;
   private muzzle!: MuzzleFlash;
@@ -64,7 +67,14 @@ export class PlayerTestScene implements Scene {
     this.ballistics = new BallisticsSystem(ctx.physics, WorldCfg.gravity);
     this.effects = new ImpactEffects(ctx.render.scene);
     this.muzzle = new MuzzleFlash(ctx.render.scene);
+    this.explosions = new ExplosionSystem(ctx.physics, ctx.render.scene);
     this.ballistics.onImpact = this.effects.handleImpact;
+    this.ballistics.onExplosion = this.explosions.handle;
+    this.explosions.onDamage = (_entity, zone, amount) => {
+      this.hitCount++;
+      this.lastHit = `explosão · ${zone} · ${amount.toFixed(0)}`;
+      this.hud.flashHit(false);
+    };
     this.ballistics.onDamage = (e) => {
       this.hitCount++;
       this.lastHit = `${e.zone} · ${e.amount.toFixed(0)} dano · ${e.distance.toFixed(0)} m`;
@@ -76,17 +86,21 @@ export class PlayerTestScene implements Scene {
     this.player = new Player(ctx.physics, START);
     this.player.yaw = 0;
 
-    this.weapon = new Weapon('rifle_m4x', this.ballistics, this.player);
+    // The test scene carries the whole arsenal so every weapon is reachable.
+    this.loadout = new Loadout(this.ballistics, this.player, LOADOUT.testArsenal);
 
     this.viewmodel = new Viewmodel(ctx.render);
-    await this.viewmodel.setWeapon('rifle_m4x');
+    await this.viewmodel.setWeapon(this.loadout.current.id);
+    this.loadout.onWeaponChanged = (weapon) => {
+      void this.viewmodel.setWeapon(weapon.id);
+    };
 
     this.hud = new Hud();
 
     this.pointerHint = document.createElement('div');
     this.pointerHint.id = 'pointer-hint';
     this.pointerHint.textContent =
-      'Clique para jogar · WASD mover · C agachar · X deitar · Botão dir. mirar · R recarregar · B modo de tiro · F1 debug';
+      'Clique para jogar · WASD mover · C agachar · X deitar · Botão dir. mirar · R recarregar · B modo de tiro · 1-9 / roda trocar arma · Q arma anterior · F1 debug';
     this.pointerHint.addEventListener('click', () => void input.requestLock());
     document.body.appendChild(this.pointerHint);
 
@@ -94,11 +108,15 @@ export class PlayerTestScene implements Scene {
 
     debugOverlay.registerSection('player', () => this.player.debugText);
     debugOverlay.registerSection('saude', () => this.player.health.debugText);
-    debugOverlay.registerSection('arma', () => this.weapon.debugText);
+    debugOverlay.registerSection(
+      'arma',
+      () => `${this.loadout.current.debugText}\n${this.loadout.pouch.debugText}`,
+    );
+    debugOverlay.registerSection('arsenal', () => this.loadout.debugText);
     debugOverlay.registerSection(
       'tiro',
       () =>
-        `dispersão ${this.weapon.spreadDegrees(this.shooterState()).toFixed(2)}°\n` +
+        `dispersão ${this.loadout.current.spreadDegrees(this.shooterState()).toFixed(2)}°\n` +
         `projéteis ativos ${this.ballistics.activeCount}\n` +
         `tiros ${this.shotCount}  acertos ${this.hitCount}\n` +
         `último ${this.lastHit}\n` +
@@ -260,9 +278,13 @@ export class PlayerTestScene implements Scene {
     this.player.queueIntents(intent);
     this.player.fixed(dt, intent);
 
-    this.weapon.setTrigger(input.isMouseDown(MOUSE_LEFT) && input.locked);
-    if (input.pressed('KeyR')) this.weapon.reload();
-    if (input.pressed('KeyB')) this.weapon.cycleFireMode();
+    this.handleWeaponSwitching();
+
+    const weapon = this.loadout.current;
+    // A weapon being raised cannot fire, so the switch time is a real cost.
+    weapon.setTrigger(input.isMouseDown(MOUSE_LEFT) && input.locked && this.loadout.ready);
+    if (input.pressed('KeyR')) weapon.reload();
+    if (input.pressed('KeyB')) weapon.cycleFireMode();
 
     const camera = this.ctx.render.camera;
     const eye = this.player.controller.eyePosition;
@@ -270,9 +292,11 @@ export class PlayerTestScene implements Scene {
     const direction = new THREE.Vector3();
     camera.getWorldDirection(direction);
 
-    const recoil = this.weapon.tryFire(origin, direction, this.shooterState());
+    const recoil = this.loadout.ready
+      ? weapon.tryFire(origin, direction, this.shooterState())
+      : null;
     if (recoil) {
-      this.shotCount++;
+      this.shotCount += recoil.projectiles;
       // Recoil moves the actual aim, not just the picture — the pattern is only
       // learnable if countering it with the mouse genuinely works.
       this.player.pitch = Math.min(this.player.pitch + recoil.pitch, Math.PI / 2 - 0.02);
@@ -280,22 +304,40 @@ export class PlayerTestScene implements Scene {
       this.viewmodel.addRecoil(recoil.pitch * 1.6, recoil.yaw * 1.6);
       this.muzzle.trigger(this.viewmodel.muzzleWorld());
     }
-    this.weapon.update(dt);
+    this.loadout.update(dt);
 
     this.ctx.physics.step();
     this.ballistics.update(dt);
+    this.explosions.update(dt);
     for (const dummy of this.dummies) dummy.update(dt);
 
-    for (const [code, zone] of DAMAGE_KEYS) {
-      if (input.pressed(code)) this.player.health.applyDamage(zone, 22);
+    // Shift+digit is the debug wound: the bare digits belong to the hotbar.
+    if (input.isDown('ShiftLeft')) {
+      for (const [code, zone] of DAMAGE_KEYS) {
+        if (input.pressed(code)) this.player.health.applyDamage(zone, 22);
+      }
     }
     if (input.pressed('KeyF')) this.player.health.bandage();
     if (input.pressed('KeyK')) {
       this.player.respawn(START);
       for (const dummy of this.dummies) dummy.reset();
+      this.loadout.pouch.refillAll();
       this.hitCount = 0;
       this.shotCount = 0;
     }
+  }
+
+  /** Number keys, mouse wheel and Q, all routed through the loadout. */
+  private handleWeaponSwitching(): void {
+    for (let i = 0; i < Math.min(9, this.loadout.count); i++) {
+      if (input.pressed(`Digit${i + 1}`) && !input.isDown('ShiftLeft')) {
+        this.loadout.select(i);
+        return;
+      }
+    }
+    if (input.pressed('KeyQ')) this.loadout.swapToPrevious();
+    if (input.wheelDelta > 0) this.loadout.next();
+    else if (input.wheelDelta < 0) this.loadout.prev();
   }
 
   frame(alpha: number, dt: number): void {
@@ -304,17 +346,21 @@ export class PlayerTestScene implements Scene {
     this.player.applyLook();
     this.player.updateCamera(this.ctx.render.camera, alpha, dt);
 
+    const weapon = this.loadout.current;
     this.viewmodel.update(dt, {
-      ads: this.player.ads,
+      ads: this.player.ads && !this.loadout.isSwitching,
       speed: this.player.speed,
       grounded: this.player.isGrounded,
       swayMultiplier: this.player.swayMultiplier,
       lookDelta: this.lastLook,
+      reload: weapon.isReloading ? weapon.reloadProgress : 0,
+      switching: this.loadout.switchProgress,
     });
     this.effects.update(dt, this.ballistics);
     this.muzzle.update(dt);
 
-    this.hud.update(this.player, this.weapon.spreadDegrees(this.shooterState()), this.weapon);
+    this.hud.update(this.player, weapon.spreadDegrees(this.shooterState()), weapon);
+    this.hud.updateHotbar(this.loadout);
     this.pointerHint.classList.toggle('hidden', input.locked);
 
     const p = this.player.position;
@@ -327,11 +373,14 @@ export class PlayerTestScene implements Scene {
     this.player.dispose();
     this.viewmodel.dispose();
     this.effects.dispose();
+    this.explosions.dispose();
     this.muzzle.dispose();
     this.hud.dispose();
     this.pointerHint.remove();
     for (const item of this.trash) item.dispose();
     this.trash.length = 0;
-    for (const name of ['player', 'saude', 'arma', 'tiro']) debugOverlay.removeSection(name);
+    for (const name of ['player', 'saude', 'arma', 'arsenal', 'tiro']) {
+      debugOverlay.removeSection(name);
+    }
   }
 }
