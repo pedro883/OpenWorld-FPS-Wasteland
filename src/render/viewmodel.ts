@@ -106,6 +106,11 @@ export class Viewmodel {
     if (def.viewmodel?.ads) this.ads.fromArray(def.viewmodel.ads);
   }
 
+  /** Hides the weapon, for when the player is riding a vehicle. */
+  setVisible(visible: boolean): void {
+    this.root.visible = visible;
+  }
+
   addRecoil(vertical: number, horizontal: number): void {
     this.recoilPitch += vertical;
     this.recoilOffset.x += horizontal * 0.01;

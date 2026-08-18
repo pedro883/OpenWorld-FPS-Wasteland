@@ -55,8 +55,13 @@
       "jerrycanLitres": 20
     },
     "camera": {
-      "thirdPersonOffset": [0, 2.6, 7.2],
-      "firstPersonOffset": [0.36, 1.25, -0.25]
+      "_comment": "A camera de dentro sai do proprio assento do ocupante, entao vale para qualquer veiculo e qualquer poltrona. Os modelos Kenney nao tem interior, entao ela e avancada alem do para-brisa para nao ficar dentro da carcaca. A de fora orbita o veiculo.",
+      "firstPersonEyeHeight": 0.42,
+      "firstPersonForward": 0.55,
+      "thirdPersonDistance": 7.4,
+      "thirdPersonHeight": 2.4,
+      "freeLookYawLimitDegrees": 130,
+      "freeLookPitchLimitDegrees": 55
     }
   },
 

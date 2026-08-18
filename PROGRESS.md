@@ -548,6 +548,24 @@ poucos segundos — o que, por si só, é a prova de que o dano localizado e a p
 tanque → incêndio → explosão funcionam. O valor final foi derivado pela aritmética da
 curva de torque e permanece um número de config, ajustável sem tocar em código.
 
+**Correções após teste em jogo**
+
+- **A câmera de dentro do veículo estava muito fora.** Três causas somadas: a orientação
+  era montada com `lookAt` seguido de `rotateY`/`rotateX`, e depois do `lookAt` os eixos
+  locais da câmera já estão inclinados, então rotacionar em torno deles compunha a
+  inclinação e a vista entortava assim que o carro saía do plano; o offset de primeira
+  pessoa era fixo, do lado do passageiro e acima do teto; e o free-look reaproveitava o
+  `player.yaw`, que acumula sem relação com o carro. Agora a orientação vem de yaw/pitch
+  explícitos, o free-look é **relativo ao veículo**, limitado e recentra sozinho, e a
+  vista de dentro sai do **assento real do ocupante** — o que vale para qualquer veículo
+  e qualquer poltrona, sem offset por modelo.
+- **Dava para ver e atirar com a arma dirigindo.** O viewmodel é escondido ao entrar e o
+  gatilho, a recarga e a troca de modo ficam inertes enquanto se dirige. Disparar de
+  dentro do veículo é uma funcionalidade da seção 4.6 que **não foi implementada**, então
+  o correto é ela não responder, e não atirar de uma arma invisível.
+- Os modelos de veículo da Kenney não têm interior, então a câmera de primeira pessoa é
+  avançada além do para-brisa para não ficar dentro da carcaça.
+
 **Fora do escopo desta fase**
 
 Disparo de dentro do veículo pelas janelas, IA dirigindo (o nó `ManVehicle` da árvore

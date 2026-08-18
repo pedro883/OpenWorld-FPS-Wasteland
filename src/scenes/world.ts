@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Scene, SceneContext } from './types';
-import { World as WorldCfg } from '../core/config';
+import { Player as PlayerCfg, World as WorldCfg } from '../core/config';
 import { input, MOUSE_LEFT } from '../core/input';
 import { debugOverlay } from '../debug/overlay';
 import { profiler } from '../core/profiler';
@@ -66,6 +66,9 @@ export class WorldScene implements Scene {
   private ridingVehicle: Vehicle | null = null;
   private ridingSeat = -1;
   private firstPersonDrive = false;
+  /** Free-look while riding, measured *relative to the vehicle*. */
+  private driveYaw = 0;
+  private drivePitch = 0;
   private readonly lastLook = { x: 0, y: 0 };
   private hudVisible = true;
   private lastHit = 'nenhum';
@@ -355,6 +358,10 @@ export class WorldScene implements Scene {
     if (seat < 0) return;
     this.ridingVehicle = vehicle;
     this.ridingSeat = seat;
+    this.driveYaw = 0;
+    this.drivePitch = 0;
+    // The weapon is stowed while riding; firing from inside is not implemented.
+    this.viewmodel.setVisible(false);
   }
 
   private exitVehicle(): void {
@@ -366,6 +373,7 @@ export class WorldScene implements Scene {
     this.player.respawnKeepingHealth(new THREE.Vector3(drop.x, (ground ?? drop.y) + 0.2, drop.z));
     this.ridingVehicle = null;
     this.ridingSeat = -1;
+    this.viewmodel.setVisible(true);
   }
 
   /** Drives the vehicle and keeps the player glued to their seat. */
@@ -482,9 +490,14 @@ export class WorldScene implements Scene {
     if (input.pressed('KeyY')) this.cycle.cycleWeather();
 
     const weapon = this.loadout.current;
-    weapon.setTrigger(input.isMouseDown(MOUSE_LEFT) && input.locked && this.loadout.ready);
-    if (input.pressed('KeyR')) weapon.reload();
-    if (input.pressed('KeyB')) weapon.cycleFireMode();
+    // Firing from inside a vehicle is not implemented, so the trigger is
+    // dead while riding rather than shooting from an invisible weapon.
+    const canShoot = input.locked && this.loadout.ready && !this.ridingVehicle;
+    weapon.setTrigger(input.isMouseDown(MOUSE_LEFT) && canShoot);
+    if (!this.ridingVehicle) {
+      if (input.pressed('KeyR')) weapon.reload();
+      if (input.pressed('KeyB')) weapon.cycleFireMode();
+    }
     if (input.pressed('KeyF')) this.player.health.bandage();
     if (input.pressed('KeyK')) this.player.respawn(this.spawn);
 
@@ -494,9 +507,7 @@ export class WorldScene implements Scene {
     const direction = new THREE.Vector3();
     this.ctx.render.camera.getWorldDirection(direction);
 
-    const recoil = this.loadout.ready
-      ? weapon.tryFire(origin, direction, this.shooterState())
-      : null;
+    const recoil = canShoot ? weapon.tryFire(origin, direction, this.shooterState()) : null;
     if (recoil) {
       this.player.pitch = Math.min(this.player.pitch + recoil.pitch, Math.PI / 2 - 0.02);
       this.player.yaw += recoil.yaw;
@@ -601,7 +612,7 @@ export class WorldScene implements Scene {
     this.pointerHint.classList.toggle('hidden', input.locked);
 
     for (const vehicle of this.vehicles) vehicle.frame();
-    this.applyVehicleCamera();
+    this.applyVehicleCamera(dt);
     this.gizmos.update(this.npcs, this.ctx.render.camera);
     this.hud.setBlindness(this.effects2.blindnessOf(this.player));
 
@@ -609,23 +620,68 @@ export class WorldScene implements Scene {
     this.ctx.render.followShadowTarget(p.x, p.y, p.z);
   }
 
-  /** Chase or cockpit camera while riding; on foot this does nothing. */
-  private applyVehicleCamera(): void {
+  /**
+   * Chase or cockpit camera while riding; on foot this does nothing.
+   *
+   * The orientation is built from explicit yaw/pitch rather than `lookAt`
+   * followed by `rotateY`: after `lookAt` the camera's local axes are already
+   * tilted, so rotating around them compounds the tilt and the view ends up
+   * skewed the moment the car is not perfectly level.
+   */
+  private applyVehicleCamera(dt: number): void {
     const vehicle = this.ridingVehicle;
     if (!vehicle) return;
     const camera = this.ctx.render.camera;
     const cfg = vehicleConfig.defaults.camera;
-    const offset = new THREE.Vector3().fromArray(
-      this.firstPersonDrive ? cfg.firstPersonOffset : cfg.thirdPersonOffset,
-    );
-    const q = vehicle.root.quaternion;
-    const target = offset.clone().applyQuaternion(q).add(vehicle.root.position);
-    camera.position.copy(target);
-    // Look where the car is going, but let the mouse still turn the head.
-    const look = new THREE.Vector3(0, 0, -12).applyQuaternion(q).add(vehicle.root.position);
-    camera.lookAt(look);
-    camera.rotateY(this.player.yaw - vehicle.yaw);
-    camera.rotateX(this.player.pitch * 0.5);
+
+    // Free-look is relative to the vehicle and clamped, so the view always
+    // returns to looking where the car is going.
+    const yawLimit = (cfg.freeLookYawLimitDegrees * Math.PI) / 180;
+    const pitchLimit = (cfg.freeLookPitchLimitDegrees * Math.PI) / 180;
+    if (input.locked) {
+      this.driveYaw -= input.mouseDX * PlayerCfg.camera.sensitivity;
+      this.drivePitch -= input.mouseDY * PlayerCfg.camera.sensitivity;
+    }
+    this.driveYaw = THREE.MathUtils.clamp(this.driveYaw, -yawLimit, yawLimit);
+    this.drivePitch = THREE.MathUtils.clamp(this.drivePitch, -pitchLimit, pitchLimit);
+    // Recentres when the mouse is still, like a head returning to the road.
+    if (Math.abs(input.mouseDX) < 0.5) this.driveYaw *= Math.max(0, 1 - dt * 1.6);
+
+    const yaw = vehicle.yaw + this.driveYaw;
+    const pitch = this.drivePitch;
+
+    if (this.firstPersonDrive) {
+      // Cockpit view comes from the occupant's actual seat, so it is correct
+      // for every vehicle and every seat without a per-vehicle offset.
+      const seat = vehicle.seatWorldPosition(this.ridingSeat);
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(vehicle.root.quaternion);
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(vehicle.root.quaternion);
+      camera.position
+        .copy(seat)
+        .addScaledVector(up, cfg.firstPersonEyeHeight)
+        .addScaledVector(forward, cfg.firstPersonForward);
+    } else {
+      const focus = vehicle.root.position.clone();
+      focus.y += 1.0;
+      // Orbit behind the car along the look direction.
+      const back = new THREE.Vector3(
+        Math.sin(yaw) * Math.cos(pitch),
+        -Math.sin(pitch),
+        Math.cos(yaw) * Math.cos(pitch),
+      );
+      camera.position
+        .copy(focus)
+        .addScaledVector(back, cfg.thirdPersonDistance)
+        .add(new THREE.Vector3(0, cfg.thirdPersonHeight, 0));
+    }
+
+    camera.rotation.set(0, 0, 0);
+    camera.rotateY(yaw);
+    camera.rotateX(pitch);
+    if (!this.firstPersonDrive) {
+      // Aim the chase camera slightly down at the car.
+      camera.rotateX(-0.16);
+    }
   }
 
   dispose(): void {
