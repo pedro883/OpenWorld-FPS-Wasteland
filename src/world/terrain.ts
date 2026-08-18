@@ -87,7 +87,11 @@ export interface FlattenDisc {
 export class Terrain {
   private readonly discs: FlattenDisc[] = [];
 
-  constructor(readonly params: TerrainParams) {}
+  readonly params: TerrainParams;
+
+  constructor(params: TerrainParams) {
+    this.params = params;
+  }
 
   /** Registered before any chunk is built; the worker gets a copy of these. */
   addFlatten(disc: FlattenDisc): void {

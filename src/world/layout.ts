@@ -1,4 +1,4 @@
-import { Terrain, type Biome, type FlattenDisc } from './terrain';
+import { Terrain, type Biome, type FlattenDisc } from './terrain.ts';
 
 export type PoiKind = 'vila' | 'militar' | 'industrial';
 
@@ -37,7 +37,10 @@ export class WorldLayout {
   readonly pois: Poi[] = [];
   readonly roads: RoadSegment[] = [];
 
-  constructor(private readonly terrain: Terrain) {
+  private readonly terrain: Terrain;
+
+  constructor(terrain: Terrain) {
+    this.terrain = terrain;
     this.build();
   }
 

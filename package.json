@@ -15,12 +15,15 @@
     "lint": "eslint src tools --ext .ts,.mjs",
     "format": "prettier --write \"src/**/*.ts\" \"tools/**/*.mjs\" \"config/*.json\"",
     "assets:inventory": "node tools/inventory.mjs",
+    "server": "node server/main.ts",
     "assets:characters": "node tools/build-characters.mjs",
     "assets:build": "node tools/build-characters.mjs && node tools/build-assets.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
-    "three": "^0.185.1"
+    "@types/ws": "^8.18.1",
+    "three": "^0.185.1",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.4.2",

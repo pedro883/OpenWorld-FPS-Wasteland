@@ -15,6 +15,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    // The server runs through Node's type stripping, which resolves the real
+    // `.ts` paths at runtime; tsc has to accept the same specifiers.
+    "allowImportingTsExtensions": true,
     "types": ["vite/client", "node"],
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] }

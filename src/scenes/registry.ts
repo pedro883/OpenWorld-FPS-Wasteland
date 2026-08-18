@@ -3,6 +3,7 @@ import { SandboxScene } from './sandbox';
 import { SmokeScene } from './smoke';
 import { PlayerTestScene } from './playerTest';
 import { WorldScene } from './world';
+import { MultiplayerScene } from './multiplayer';
 
 type SceneFactory = () => Scene;
 
@@ -15,6 +16,7 @@ export const scenes: Record<string, SceneFactory> = {
   smoke: () => new SmokeScene(),
   player: () => new PlayerTestScene(),
   world: () => new WorldScene(),
+  mp: () => new MultiplayerScene(),
 };
 
 export const DEFAULT_SCENE = 'world';

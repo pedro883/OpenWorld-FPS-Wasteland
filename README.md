@@ -71,6 +71,16 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 | `I` | Mochila: peso, depósito, usar itens |
 | `L` | Arsenal: comprar e vender (só na zona segura) |
 | `O` | Opções: mira, volume, gráficos e teclas |
+
+### Multiplayer
+
+```bash
+npm run server
+```
+
+Depois abra `?scene=mp` (ou `?scene=mp&server=ws://host:porta`). O servidor é
+autoritativo, aceita 16 jogadores e **precisa de um processo Node** — não roda
+em hospedagem compartilhada.
 | `Espaço` | Pular / subir (freecam) |
 | `Ctrl` | Descer (freecam) |
 | Roda do mouse | Velocidade da freecam |

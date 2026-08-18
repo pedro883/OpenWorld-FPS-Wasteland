@@ -16,7 +16,7 @@ como stub visível, nunca como TODO silencioso.
 | 6. Veículos | ✅ concluída |
 | 7. Missões + loot + economia | ✅ concluída |
 | 8. Arsenal completo + polimento | ✅ concluída |
-| 9. Multiplayer (opcional) | não iniciada |
+| 9. Multiplayer (opcional) | ✅ concluída |
 
 ---
 
@@ -870,3 +870,104 @@ escrito em código.
 
 Normalização a −16 LUFS (precisa de ffmpeg, que não está instalado) e reverb por
 convolução — a cauda hoje é um sample por ambiente, não um `ConvolverNode`.
+
+---
+
+## Fase 9 — Multiplayer autoritativo ✅
+
+**Entregue**
+
+- **Servidor autoritativo** (`server/`) em Node + `ws`, 30 Hz de simulação e 20 Hz
+  de snapshot, até 16 jogadores. Roda sem build: o Node 24 tira os tipos na
+  entrada (`npm run server`).
+- **`GameServer` não conhece sockets.** Ele recebe objetos `Connection`, e é isso
+  que permite o teste de aceite ligar dois clientes por um cano que injeta atraso,
+  sem rede nenhuma. O `ws` entra só no `main.ts`.
+- **O servidor não carrega o mapa.** A altura do terreno é a mesma função pura que
+  o cliente usa, então nenhum dado de mundo cruza o fio e os dois lados concordam
+  sobre o chão de graça.
+- **Predição e reconciliação** (`net/client.ts`): o jogador local anda no instante
+  em que a tecla desce. Cada comando fica guardado até o servidor confirmar; numa
+  correção o cliente volta ao estado autoritativo e **reaplica** o que o servidor
+  ainda não tinha visto, caindo exatamente onde o servidor vai cair. Sem o replay,
+  cada snapshot arrastaria o jogador um round-trip para trás.
+- **Interpolação** dos remotos 100 ms atrás do snapshot mais novo, com ângulo indo
+  pelo caminho curto. Fora do fim do buffer ele **segura** o último estado em vez
+  de extrapolar: adivinhar para frente faz quem parou continuar andando e depois
+  voltar de repente, o que é bem pior que um congelamento breve.
+- **Compensação de lag**: o servidor guarda 1 s de posições e rebobina o alvo para
+  o instante que o atirador via — a latência dele mais o atraso de interpolação.
+  É a diferença entre um jogo justo e um em que se precisa liderar todo tiro.
+- **O socket é tratado como hostil**: `dt`, dano e alcance são limitados na
+  entrada, a origem do tiro é conferida contra onde o servidor põe o atirador
+  (3 m de tolerância), há limite de cadência, e o rebobinamento é limitado a
+  500 ms mesmo que o cliente peça mais.
+- **Cena `?scene=mp`** (com `&server=ws://host:porta`) com os outros jogadores
+  desenhados e animados.
+
+**Aceite verificado — o critério da spec, com 100 ms simulados**
+
+| | |
+|---|---|
+| Posições | cliente 2 vê o cliente 1 em `[-394.672, 11.532, 363.026]`, **idêntico** à posição autoritativa |
+| Tiros | acerta onde o atirador viu; a mesma reta contra a posição *atual* do alvo erraria por mais de 42 cm |
+| Correções | **0 em 42 snapshots** andando, 0 em 35 parado |
+| Lotação | 16 jogadores aceitos, o 17º recusado na porta |
+| Testes | 19 de rede, dos quais 8 com dois clientes atrás de um cano de 100 ms |
+
+**Três defeitos encontrados no teste, todos reais**
+
+1. **Tempestade de ping.** O cliente ecoava o `pong` de volta, o servidor
+   respondia com outro `pong`, e o ciclo se realimentava sozinho carregando
+   sempre o timestamp original — o RTT medido chegou a **31 segundos**. Agora só
+   o cliente mede (é o único lado que tem as duas pontas do relógio) e informa o
+   valor, que o servidor limita antes de deixá-lo mexer no rebobinamento.
+2. **Parâmetros de mundo copiados à mão.** Escrevi `waterLevel: 0` no servidor
+   enquanto o config dizia `4`. O servidor passou a ler `config/world.json`.
+3. **O servidor não aplicava o layout.** Este era o grave: construir o
+   `WorldLayout` é o que **registra os discos de achatamento** que nivelam o chão
+   sob os POIs. Sem ele o servidor lia terreno bruto onde o cliente lia a vila
+   nivelada — **11,10 m contra 13,65 m no mesmo ponto**, e o jogador era corrigido
+   em *todo* snapshot, até parado. O mesmo erro estava no arnês de teste, que só
+   passou a acusar depois de a correção entrar.
+
+**Limites honestos**
+
+- **A cena `mp` é separada do mundo single-player.** O mundo move o jogador com
+  uma cápsula do Rapier, que o servidor não reproduz sem embarcar física e mapa
+  inteiro; na `mp` o jogador local roda o **mesmo modelo determinístico** do
+  servidor, que é a única forma de predição e autoridade concordarem. Unificar os
+  dois controladores é o trabalho que fica.
+- **Colisão com prédios não é validada pelo servidor**, só terreno e velocidade.
+  Um cliente modificado atravessa parede no multiplayer.
+- Missões, loot, veículos e economia continuam locais: o servidor sincroniza
+  jogadores e tiros, não o mundo inteiro.
+- **Não sobe em hospedagem compartilhada.** O `.zip` do Hostinger continua
+  single-player; o servidor precisa de um processo Node (VPS, Fly.io, Railway).
+
+---
+
+## Inventário estilo Tarkov (pendente, combinado com o usuário)
+
+Substituir o inventário atual (`src/entities/inventory.ts`, hoje uma lista por
+peso) por um sistema espacial completo:
+
+1. **Grid X×Y** por contêiner, itens com dimensão própria (fuzil 4×2, carregador
+   1×2, granada 1×1) e **rotação de 90°** (tecla R ao arrastar).
+2. **Slots de equipamento** dedicados (primária, secundária, pistola, coldre,
+   capacete, colete, headset, mochila, bolsos) com restrição por tag.
+3. **Contêineres aninhados** — mochila dentro de caixa, cada um com sua matriz.
+4. **Inspeção de corpos** com slots inicialmente "não pesquisados" e
+   **temporizador de busca** com barra de progresso; desequipar direto do corpo.
+5. **Caixas no mundo** (10×10, 15×20) genéricas e especializadas com filtro rígido
+   (munição, armas, granadas).
+6. **Drop físico**: arrastar para fora da UI ou tecla de descarte instancia o
+   objeto 3D à frente do jogador; coleta por raycast com tooltip, `E` pega e `F`
+   equipa; coluna "No Chão" no inventário.
+7. **Inspeção detalhada** com modelo 3D rotacionável, atributos e slots de anexo.
+8. **Persistência em MySQL** com `items_base`, `containers`, `item_instances` e
+   `item_attachments`, DDL com índices por `player_id` e `container_id`, e DTOs de
+   serialização assíncrona.
+
+Isso é uma fase inteira por si só — troca o modelo de dados do inventário, a UI e
+a camada de persistência, e o servidor da fase 9 passa a ser o dono do estado.
