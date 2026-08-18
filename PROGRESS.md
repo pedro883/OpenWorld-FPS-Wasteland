@@ -11,8 +11,8 @@ como stub visível, nunca como TODO silencioso.
 | 2. Jogador | ✅ concluída |
 | 3. Combate base | ✅ concluída |
 | 3.5 Arsenal (adiantado da fase 8) | ✅ concluída |
-| 4. Mundo | ⏳ em andamento |
-| 5. IA | ⬜ |
+| 4. Mundo | ✅ concluída |
+| 5. IA | ⏳ em andamento |
 | 6–9 | fora do escopo desta execução |
 
 ---
@@ -352,3 +352,66 @@ Acessórios modulares (miras, supressores acopláveis, empunhaduras) do Blaster 
 fumaça e cegueira das granadas não-letais, e dano por queimadura contínua do
 lança-chamas — os campos já existem em `config/weapons.json`, mas o efeito não foi
 implementado.
+
+---
+
+## Fase 4 — Mundo ✅
+
+**Entregue**
+
+- `world/terrain.ts` — o terreno é uma **função pura de (seed, x, z)**. O módulo não
+  importa three, Rapier nem DOM, porque é carregado também pelo Web Worker: se as duas
+  cópias divergissem em um bit, o colisor e a malha discordariam.
+  Continente + colinas + cristas *ridged* mascaradas pelo continente + detalhe fino.
+- `world/layout.ts` — POIs e estradas são calculados **antes** do terreno e o
+  *dirigem*: cada POI e cada trecho de estrada registra um disco de achatamento, então
+  o chão já nasce nivelado. Colocar prédios sobre um terreno pronto os deixaria
+  flutuando ou enterrados em qualquer encosta.
+- `world/terrainWorker.ts` — gera posições, normais (a partir do próprio campo de
+  altura, exato e mais barato que acumular normais de face), cores por vértice e
+  índices, e devolve tudo por *transfer* de buffers.
+- `world/streamer.ts` — chunks de 128 m com 3 LODs (32/16/8 quads), raio de carga 5 e
+  descarga 7, **1 chunk aplicado por frame**, e colisor `heightfield` do Rapier em
+  resolução fixa de 16 — o LOD visual muda, a física não.
+- `world/scatter.ts` — vegetação e props num **`InstancedMesh` por modelo para o mundo
+  inteiro**, não por chunk: um chunk de floresta tem 64 props, e com 80 chunks
+  carregados o instancing por chunk custaria centenas de draw calls.
+- `world/daynight.ts` — ciclo de 60 min por interpolação de keyframes, 4 climas, e
+  expõe `visibility`, o número único que a IA da fase 5 lê para saber até onde enxerga.
+  Noite e neblina precisam cegar o inimigo de verdade, senão escuridão é decoração.
+- `world/water.ts` — plano com shader de duas ondas cruzadas, fôlego e afogamento.
+- `world/poiBuilder.ts` — os 3 POIs montados dos kits, com colisor de caixa derivado do
+  bounding box de cada modelo (dezenas de prédios por POI; trimesh sairia caro demais
+  para uma parede sólida). Estradas como fita de quads seguindo o grade já nivelado.
+
+**Aceite verificado** — travessia de 2.545 m na diagonal do mapa
+
+| | |
+|---|---|
+| Chunks construídos na travessia | **624** |
+| Chunks simultaneamente carregados | **85–108** (limitado, sem vazar) |
+| Crescimento de heap | **+1,9 MB** (98,2 → 100,1) |
+| FPS | **180**, orçamento `world` 0,83/2 ms |
+| Props instanciados | 470–2.778 conforme o bioma |
+| Água | ~2% da superfície; relevo de −3 m a +76 m |
+| Noite + neblina | visibilidade cai a **8%** |
+
+**Defeitos encontrados e corrigidos durante a fase**
+
+- **A vila afundava 36 m.** As estradas saem do centro dos POIs, e eu calculava a
+  altura das pontas amostrando o terreno **bruto** (−28 m), enquanto o disco do POI já
+  usava a altura corrigida (+8 m). Como os discos de estrada são aplicados depois, eles
+  sobrescreviam o POI. As estradas passaram a herdar a altura dos POIs que ligam.
+- **O jogador caía pelo mundo no spawn.** A geração é assíncrona; chamar `update()` em
+  laço não espera o worker. Foi adicionado um `warmup()` que aguarda os chunks ao redor
+  do spawn antes de criar o jogador, e o spawn é reposicionado sobre o colisor real.
+- **O mapa era um oceano.** O campo de ruído é centrado em zero, então metade da
+  superfície ficava abaixo da linha d'água e só 10 props apareciam em 80 chunks
+  (tudo era mar). A distribuição foi comprimida e elevada; ficou em ~2% de água.
+
+**Fora do escopo desta fase**
+
+Imposters para distância (os LODs 0–2 já cobrem o alcance útil), e as estradas usam uma
+fita procedural em vez das peças do Road Pack — o terreno já está nivelado ao longo do
+traçado, e as peças exigiriam lógica de orientação e cruzamento sem ganho visível nessa
+escala de arte.

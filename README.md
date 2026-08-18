@@ -43,7 +43,8 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 |---|---|
 | `?scene=sandbox` | Chão, rampa e caixas dinâmicas — valida loop fixo, física e interpolação |
 | `?scene=smoke` | Um modelo de cada categoria ao lado de uma referência de 1,80 m — valida o pipeline de assets e a escala dos kits |
-| `?scene=player` | **Padrão.** Circuito de obstáculos (rampas de 15° a 55°, degraus de 0,20 m a 0,70 m, saliência, vão de rastejo) + campo de tiro com alvos a 12/30/65/120/200 m e painéis de madeira, saco de areia, metal e concreto |
+| `?scene=world` | **Padrão.** Mundo aberto: terreno 2048×2048 m em streaming, 3 POIs ligados por estradas, ciclo dia/noite e clima |
+| `?scene=player` | Circuito de obstáculos (rampas de 15° a 55°, degraus de 0,20 m a 0,70 m, saliência, vão de rastejo) + campo de tiro com alvos a 12/30/65/120/200 m e painéis de madeira, saco de areia, metal e concreto |
 
 ## Controles
 
@@ -70,6 +71,9 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 | `F1` | Mostra/esconde o painel de debug |
 | `G` | Liga/desliga a freecam |
 | `H` | Mostra/esconde o HUD |
+| `T` | Acelera o tempo 60× (cena `world`) |
+| `Y` | Troca o clima: limpo → nublado → chuva → neblina |
+| `P` | Pausa o ciclo dia/noite |
 | `N` | Próxima animação do personagem (cena `smoke`) |
 
 ## Arquitetura
