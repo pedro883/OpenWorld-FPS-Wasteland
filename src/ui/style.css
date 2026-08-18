@@ -573,3 +573,28 @@ html, body {
 .inv-search div { height: 100%; background: #ffb040; }
 
 .inv-ground { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+
+/* ---- Ícones dos itens -------------------------------------------------- */
+
+.inv-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  text-align: center;
+}
+.inv-icon { pointer-events: none; object-fit: contain; }
+.inv-glyph { color: #ffcf8a; opacity: 0.92; }
+.inv-item-name {
+  font-size: 9px;
+  line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+.inv-slot-item { display: flex; align-items: center; gap: 5px; }
+.inv-ground-row { display: flex; align-items: center; gap: 6px; }
+.inv-ghost { display: flex; align-items: center; justify-content: center; }

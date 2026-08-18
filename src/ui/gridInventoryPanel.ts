@@ -2,6 +2,7 @@ import type { Grid } from '../inventory/grid';
 import type { InventorySystem } from '../inventory/inventorySystem';
 import { EQUIP_SLOTS, footprintOf, type EquipSlot, type ItemBase, type Rotation } from '../inventory/types';
 import { Panel } from './panel';
+import { iconElement } from './itemIcons';
 
 const CELL_PX = 34;
 
@@ -116,7 +117,7 @@ export class GridInventoryPanel extends Panel {
   private startDrag(uuid: string, base: ItemBase, rotation: Rotation, offsetX: number, offsetY: number): void {
     const ghost = document.createElement('div');
     ghost.className = 'inv-ghost';
-    ghost.textContent = base.name;
+    ghost.append(iconElement(base, 28));
     document.body.append(ghost);
     this.drag = { uuid, base, rotation, offsetX, offsetY, ghost };
     this.paintGhost();
@@ -173,7 +174,7 @@ export class GridInventoryPanel extends Panel {
       if (base) {
         const item = document.createElement('span');
         item.className = 'inv-slot-item';
-        item.textContent = base.name;
+        item.append(iconElement(base, 20), document.createTextNode(base.name));
         cell.append(item);
       }
       cell.addEventListener('pointerup', () => {
@@ -228,7 +229,13 @@ export class GridInventoryPanel extends Panel {
       tile.style.top = `${instance.y * CELL_PX}px`;
       tile.style.width = `${w * CELL_PX - 2}px`;
       tile.style.height = `${h * CELL_PX - 2}px`;
-      tile.textContent = base.name;
+      // Icon first, name underneath: at one cell the name is unreadable anyway
+      // and the silhouette is what the player actually scans for.
+      tile.append(iconElement(base, Math.min(w, h) * CELL_PX - 10));
+      const label = document.createElement('span');
+      label.className = 'inv-item-name';
+      label.textContent = base.name;
+      tile.append(label);
       if (base.tags.includes('ammo') && instance.quantity > 1) {
         const count = document.createElement('span');
         count.className = 'inv-count';
@@ -294,8 +301,11 @@ export class GridInventoryPanel extends Panel {
       const base = this.ctx.resolve(entry.instance.baseId);
       if (!base) continue;
       const row = document.createElement('button');
-      row.className = 'panel-button';
-      row.textContent = `${base.name} · ${base.weightKg.toFixed(2)} kg`;
+      row.className = 'panel-button inv-ground-row';
+      row.append(
+        iconElement(base, 18),
+        document.createTextNode(`${base.name} · ${base.weightKg.toFixed(2)} kg`),
+      );
       row.addEventListener('click', () => {
         const into = this.ctx.ownGridIds()[0];
         if (!into) return;
