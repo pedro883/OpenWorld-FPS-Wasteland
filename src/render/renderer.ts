@@ -10,6 +10,14 @@ export class RenderContext {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   readonly sun: THREE.DirectionalLight;
+  /**
+   * Second pass drawn on top of the world with a narrower FOV. A first-person
+   * weapon sits ~70 cm from the lens, where the world's 75° FOV makes it fill
+   * the screen; giving it its own camera is the standard fix and also keeps it
+   * out of the world's fog and shadow passes.
+   */
+  readonly overlayScene = new THREE.Scene();
+  readonly overlayCamera: THREE.PerspectiveCamera;
   readonly sky: THREE.HemisphereLight;
   /** Unit vector from the target towards the sun. Owned here so that moving
    *  the shadow frustum never feeds back into the light direction. */
@@ -63,6 +71,12 @@ export class RenderContext {
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
 
+    this.overlayCamera = new THREE.PerspectiveCamera(65, 1, 0.01, 10);
+    const overlayKey = new THREE.DirectionalLight(0xfff2df, 2.0);
+    overlayKey.position.set(0.4, 1, 0.6);
+    this.overlayScene.add(overlayKey);
+    this.overlayScene.add(new THREE.HemisphereLight(0xbdd9f2, 0x4a4336, 1.4));
+
     this.resize();
     window.addEventListener('resize', this.resize);
   }
@@ -89,11 +103,27 @@ export class RenderContext {
     const h = window.innerHeight;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.overlayCamera.aspect = w / h;
+    this.overlayCamera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
   };
 
   render(): void {
+    this.renderer.autoClear = true;
     this.renderer.render(this.scene, this.camera);
+    if (this.overlayScene.children.length > 2) {
+      this.renderer.autoClear = false;
+      this.renderer.clearDepth();
+      this.renderer.render(this.overlayScene, this.overlayCamera);
+      this.renderer.autoClear = true;
+    }
+  }
+
+  /** Overlay FOV, separate from the world's (which ADS also animates). */
+  setOverlayFov(fov: number): void {
+    if (Math.abs(this.overlayCamera.fov - fov) < 0.01) return;
+    this.overlayCamera.fov = fov;
+    this.overlayCamera.updateProjectionMatrix();
   }
 
   dispose(): void {

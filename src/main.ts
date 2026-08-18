@@ -28,7 +28,8 @@ async function boot(): Promise<void> {
       profiler.begin('physics');
       scene.fixed(dt);
       profiler.end('physics');
-      input.endFrame();
+      // Key/button edges belong to the simulation step that consumed them.
+      input.endFixedStep();
     },
     render: (alpha, dt) => {
       profiler.begin('other');
@@ -40,12 +41,26 @@ async function boot(): Promise<void> {
       profiler.end('render');
 
       debugOverlay.update(dt, loop, render.renderer);
+      // Mouse deltas are per-frame: the camera reads them here, in render.
+      input.endFrame();
     },
   });
 
   await scene.init({ render, physics, loop });
 
   debugOverlay.registerSection('scene', () => `${name}   sim ${loop.simTime.toFixed(0)}s`);
+
+  // Dev-only handle so scenes can be inspected and driven from the console.
+  if (import.meta.env.DEV) {
+    (globalThis as unknown as Record<string, unknown>).__wasteland = {
+      render,
+      physics,
+      loop,
+      scene,
+      assets,
+      input,
+    };
+  }
   bootEl?.classList.add('hidden');
   loop.start();
 

@@ -8,8 +8,8 @@ como stub visível, nunca como TODO silencioso.
 |---|---|
 | 0. Setup | ✅ concluída |
 | 1. Pipeline de assets | ✅ concluída |
-| 2. Jogador | ⏳ em andamento |
-| 3. Combate base | ⬜ |
+| 2. Jogador | ✅ concluída |
+| 3. Combate base | ⏳ em andamento |
 | 4. Mundo | ⬜ |
 | 5. IA | ⬜ |
 | 6–9 | fora do escopo desta execução |
@@ -137,3 +137,85 @@ sombras corretas e o overlay ativo: **180 FPS**, render 0,11 ms, física 0,03 ms
 O áudio é copiado como está. Todos os 580 arquivos já são `.ogg`; a conversão pedida na
 seção 2.3 seria reencodificação com perda. A normalização a −16 LUFS continua pendente e
 depende de instalar ffmpeg.
+
+---
+
+## Fase 2 — Jogador ✅
+
+**Entregue**
+
+- `physics/characterController.ts` — cápsula cinemática sobre o
+  `KinematicCharacterController` do Rapier. Trabalha em posição de **pés**, não do
+  centro da cápsula, porque toda regra de jogo (altura dos olhos, postura, snap ao
+  chão) é sobre os pés. Autostep de 0,45 m faz as vezes de mantle; troca de postura
+  usa `setHalfHeight`, mantendo o handle do colisor estável.
+- `entities/player.ts` — aceleração/atrito separados em solo e ar, três posturas,
+  sprint com stamina, pulo, e interpolação da câmera entre os dois últimos estados
+  fixos. A leitura de teclado sai num struct de intenção (`PlayerInput`), para que os
+  bots da fase de simulação usem exatamente o mesmo código de movimento.
+- `entities/health.ts` — vida por zona (cabeça, torso, 2 braços, 2 pernas) com
+  multiplicador por zona, sangramento com chance proporcional à severidade, bandagem e
+  os efeitos de membro ferido (perna = lento, braço = sway).
+- `render/viewmodel.ts` + **passada de render própria** — o viewmodel foi para uma
+  cena/câmera separadas com FOV de 65° (45° na mira). Com o FOV de 75° do mundo, uma
+  arma a 70 cm da lente ocupa metade da tela; a passada separada resolve isso e ainda
+  a isola da névoa, das sombras e do far plane.
+- `ui/hud.ts` — HUD em DOM+CSS: silhueta com as seis zonas coloridas por vida,
+  barra de stamina, postura, aviso de sangramento, retículo que abre com a dispersão e
+  vinheta que escurece conforme as zonas letais caem.
+- `scenes/playerTest.ts` — circuito de obstáculos que *afirma* o comportamento:
+  rampas de 15/25/35/45/55° e degraus de 0,20/0,35/0,45/0,55/0,70 m, escolhidos em
+  torno dos limites configurados (50° de inclinação, 0,45 m de autostep).
+- `tests/health.test.ts` — 17 testes do modelo de dano, com `Math.random` fixado para
+  tornar o sangramento determinístico.
+
+**Aceite verificado** (dirigindo o jogador por eventos de teclado reais)
+
+| Obstáculo | Esperado | Medido |
+|---|---|---|
+| Degraus 0,20 / 0,35 / 0,45 m | sobe (≤ autostep) | sobe até 0,82 / 1,07 / 1,18 m |
+| Degraus 0,55 / 0,70 m | recusa (> autostep) | para em z=12, y=0,02 |
+| Rampas 15 / 25 / 35 / 45° | sobe (≤ 50°) | sobe |
+| Rampa 55° | recusa (> 50°) | não sai do chão |
+| Vão de 1,05 m | só deitado | bloqueado em pé, passa deitado |
+| Levantar sob o vão | recusado | continua deitado |
+| Andar / correr | 3,6 / 6,4 m/s | bate com a config |
+| Pulo | sobe e pousa, custa 8 de stamina | 0,64 m, stamina 100→92 |
+| Sangramento | 1,6 HP/s no torso | exatamente 8,0 HP em 5 s |
+| Bandagem | estanca | estanca e recupera a pior zona |
+
+Desempenho no circuito: **180 FPS**, render 0,53 ms, física 0,47 ms, 6 draw calls.
+
+**Defeitos encontrados e corrigidos durante a fase**
+
+- **Bordas de input eram perdidas.** `input.endFrame()` limpava `pressed()` no fim de
+  cada frame de render. Como o render roda a ~180 FPS e a simulação a 60 Hz, 2 de cada
+  3 frames não executam nenhum passo fixo — a tecla era limpa antes de qualquer passo
+  fixo lê-la. Pulo, agachar, deitar e recarregar simplesmente não respondiam. O input
+  passou a ter dois consumos: `endFixedStep()` para bordas de tecla/botão e
+  `endFrame()` para os deltas de mouse.
+- **Realimentação que matava o autostep.** O jogador travava num degrau de 20 cm. A
+  causa não era o Rapier: ao colidir, o código amortecia a própria velocidade (e, numa
+  segunda tentativa, a sobrescrevia com o movimento resolvido). Nos dois casos a
+  velocidade colapsava, o passo seguinte pedia um deslocamento micrométrico e o
+  autostep nunca recebia movimento horizontal suficiente para erguer a cápsula. O
+  controlador cinemático agora mantém a própria velocidade e deixa o solver só limitar
+  o deslocamento.
+- **Circuito de testes com dois erros de montagem**, que mascaravam o comportamento
+  real: as rampas estavam giradas em Z (subiam no eixo X, perpendicular ao caminho do
+  jogador) e a escadaria tinha o degrau mais alto de frente para o jogador, virando um
+  muro. Além disso, centrar a laje da rampa deixava um ressalto de ~0,5 m na ponta —
+  acima do autostep — e a rampa falhava por um motivo que nada tinha a ver com
+  inclinação. As rampas agora nascem rentes ao chão.
+- O jogador nascia **dentro** da escadaria.
+- Ordem do sol: `followShadowTarget` renormalizava a própria posição do sol, girando a
+  luz a cada frame (corrigido ainda na fase 0, mas só visível aqui).
+
+**Desvio da especificação**
+
+A seção 4.4 pede **braços em primeira pessoa**. Os personagens Kenney são uma única
+malha skinned — não há como isolar os braços — e não existe pack de braços FPS no
+acervo. O viewmodel é, portanto, só a arma, com sway, bob, ADS e recuo procedurais.
+As alternativas seriam modelar braços do zero (fora do escopo CC0 do projeto) ou
+renderizar o corpo inteiro em primeira pessoa, o que fica esquisito num personagem
+tão estilizado.

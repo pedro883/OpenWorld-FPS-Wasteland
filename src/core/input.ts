@@ -101,11 +101,23 @@ class Input {
     return this.mouseJustPressed.has(button);
   }
 
-  /** Called at the end of each fixed tick, after systems have read the edges. */
-  endFrame(): void {
+  /**
+   * Consumes the edge-triggered state. This must run at the end of a *fixed*
+   * step, not the frame: the render loop outruns the 60 Hz simulation, so most
+   * frames execute zero fixed steps, and clearing there would drop presses
+   * before gameplay ever saw them.
+   */
+  endFixedStep(): void {
     this.justPressed.clear();
     this.justReleased.clear();
     this.mouseJustPressed.clear();
+  }
+
+  /**
+   * Consumes the continuous look state. This is per *frame*, because mouse
+   * deltas drive the camera, which is presentation and not simulation.
+   */
+  endFrame(): void {
     this.mouseDX = 0;
     this.mouseDY = 0;
     this.wheelDelta = 0;

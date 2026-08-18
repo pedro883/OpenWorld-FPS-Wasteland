@@ -43,6 +43,7 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 |---|---|
 | `?scene=sandbox` | Chão, rampa e caixas dinâmicas — valida loop fixo, física e interpolação |
 | `?scene=smoke` | Um modelo de cada categoria ao lado de uma referência de 1,80 m — valida o pipeline de assets e a escala dos kits |
+| `?scene=player` | **Padrão.** Circuito de obstáculos: rampas de 15° a 55°, degraus de 0,20 m a 0,70 m, saliência e vão de rastejo |
 
 ## Controles
 
@@ -50,12 +51,19 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 |---|---|
 | `W A S D` | Mover |
 | `Shift` | Correr |
+| `C` | Agachar |
+| `X` | Deitar |
+| Botão direito | Mirar (ADS) |
+| `F` | Bandagem |
+| `1`–`6` | Aplicar dano de teste na zona (cabeça, torso, braços, pernas) |
+| `R` | Renascer |
 | `Espaço` | Pular / subir (freecam) |
 | `Ctrl` | Descer (freecam) |
 | Roda do mouse | Velocidade da freecam |
 | Clique | Capturar o mouse (Pointer Lock) |
 | `F1` | Mostra/esconde o painel de debug |
 | `G` | Liga/desliga a freecam |
+| `H` | Mostra/esconde o HUD |
 | `N` | Próxima animação do personagem (cena `smoke`) |
 
 ## Arquitetura

@@ -1,0 +1,62 @@
+{
+  "_comment": "Nomes fictícios/genéricos por exigência da seção 9 da spec. Distâncias em metros, tempos em segundos, ângulos em graus. O padrão de recuo é uma curva por disparo (índice = nº do tiro na rajada), o que o torna memorizável. Os offsets de viewmodel são relativos à câmera; a origem dos modelos Kenney fica na BASE da arma, então o eixo Y desce quase uma altura inteira do modelo.",
+  "defaults": {
+    "adsTransitionSeconds": 0.18,
+    "spreadRecoverPerSecond": 3.5,
+    "viewmodel": {
+      "hip": [0.11, -0.3, -0.72],
+      "ads": [0.0, -0.135, -0.6],
+      "rotationDegrees": [0, 180, 0],
+      "scale": 0.5,
+      "swayPosition": 0.035,
+      "swayRotation": 0.06,
+      "bobAmount": 0.014
+    }
+  },
+  "weapons": {
+    "rifle_m4x": {
+      "name": "Fuzil de Assalto M4X",
+      "class": "rifle",
+      "model": "weapon-pack/machinegun",
+      "caliber": "5.56",
+      "damage": 26,
+      "damageFalloff": [
+        [0, 1.0],
+        [70, 1.0],
+        [180, 0.68],
+        [350, 0.46]
+      ],
+      "muzzleVelocity": 880,
+      "penetration": 0.55,
+      "rpm": 780,
+      "fireModes": ["auto", "burst", "single"],
+      "burstCount": 3,
+      "magazine": 30,
+      "reloadTacticalSeconds": 2.1,
+      "reloadEmptySeconds": 2.95,
+      "zeroMeters": 100,
+      "noiseRadiusMeters": 260,
+      "weightKg": 3.4,
+      "spread": {
+        "stand": 1.7,
+        "crouch": 1.15,
+        "prone": 0.72,
+        "adsMultiplier": 0.22,
+        "movingMultiplier": 2.3,
+        "jumpingMultiplier": 4.0,
+        "perShotDegrees": 0.34,
+        "maxDegrees": 6.0
+      },
+      "recoil": {
+        "verticalPattern": [1.0, 1.25, 1.4, 1.5, 1.55, 1.6, 1.6, 1.55, 1.5, 1.45],
+        "horizontalPattern": [0.0, 0.15, -0.1, 0.3, -0.35, 0.45, -0.2, 0.5, -0.55, 0.25],
+        "verticalDegrees": 0.42,
+        "horizontalDegrees": 0.3,
+        "recoverySeconds": 0.34,
+        "recoveryFraction": 0.75,
+        "viewKick": 0.9,
+        "adsMultiplier": 0.72
+      }
+    }
+  }
+}
