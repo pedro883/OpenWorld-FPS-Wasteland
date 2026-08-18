@@ -1,0 +1,47 @@
+{
+  "capsule": { "radius": 0.35, "standHeight": 1.8, "crouchHeight": 1.2, "proneHeight": 0.65 },
+  "eyeOffset": { "stand": 1.62, "crouch": 1.05, "prone": 0.45 },
+  "speed": { "walk": 3.6, "sprint": 6.4, "crouch": 1.9, "prone": 0.9, "ads": 2.1 },
+  "acceleration": { "ground": 45, "air": 6, "friction": 12 },
+  "jumpVelocity": 5.2,
+  "maxSlopeDegrees": 50,
+  "autostepHeight": 0.45,
+  "snapToGroundDistance": 0.4,
+  "stamina": {
+    "max": 100,
+    "sprintDrainPerSecond": 14,
+    "jumpCost": 8,
+    "regenPerSecond": 11,
+    "regenDelaySeconds": 1.2,
+    "exhaustedThreshold": 12,
+    "swayMultiplierAtZero": 3.0
+  },
+  "health": {
+    "zones": {
+      "head": { "max": 40, "damageMultiplier": 2.6 },
+      "torso": { "max": 100, "damageMultiplier": 1.0 },
+      "armLeft": { "max": 55, "damageMultiplier": 0.75 },
+      "armRight": { "max": 55, "damageMultiplier": 0.75 },
+      "legLeft": { "max": 60, "damageMultiplier": 0.8 },
+      "legRight": { "max": 60, "damageMultiplier": 0.8 }
+    },
+    "brokenLegSpeedMultiplier": 0.45,
+    "brokenArmSwayMultiplier": 2.2,
+    "bleedDamagePerSecond": 1.6,
+    "bleedChanceAtFullDamage": 0.55,
+    "bandageSeconds": 4.0,
+    "bandageHealPerZone": 25,
+    "medkitSeconds": 9.0
+  },
+  "camera": {
+    "fovDegrees": 75,
+    "adsFovDegrees": 45,
+    "adsTransitionSeconds": 0.18,
+    "sensitivity": 0.0022,
+    "bobAmplitude": 0.035,
+    "bobFrequency": 9.0,
+    "swayAmount": 0.021,
+    "swaySmoothing": 8.0
+  },
+  "inventory": { "maxWeightKg": 32, "primarySlots": 2, "secondarySlots": 1 }
+}

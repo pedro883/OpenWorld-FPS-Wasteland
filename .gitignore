@@ -1,0 +1,8 @@
+node_modules/
+dist/
+_assets_raw/
+public/assets/
+*.local
+.DS_Store
+.vite/
+coverage/

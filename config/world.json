@@ -1,0 +1,23 @@
+{
+  "seed": 1337,
+  "sizeMeters": 2048,
+  "chunkMeters": 128,
+  "heightScale": 90,
+  "waterLevel": 4.0,
+  "gravity": -19.62,
+  "dayLengthMinutes": 60,
+  "startHour": 9.5,
+  "streaming": {
+    "loadRadiusChunks": 5,
+    "unloadRadiusChunks": 7,
+    "lodDistances": [140, 320, 700],
+    "maxChunkBuildsPerFrame": 1
+  },
+  "fog": {
+    "clearDensity": 0.0018,
+    "overcastDensity": 0.0042,
+    "rainDensity": 0.0075,
+    "heavyFogDensity": 0.02
+  },
+  "drowning": { "damagePerSecond": 12, "breathSeconds": 20 }
+}

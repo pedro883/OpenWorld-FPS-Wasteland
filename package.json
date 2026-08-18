@@ -1,0 +1,37 @@
+{
+  "name": "wasteland-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "FPS de mundo aberto no navegador — Three.js + Rapier3D, assets Kenney (CC0)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tools --ext .ts,.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"tools/**/*.mjs\" \"config/*.json\"",
+    "assets:inventory": "node tools/inventory.mjs",
+    "assets:build": "node tools/build-assets.mjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.20.0",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "^4.4.2",
+    "@gltf-transform/extensions": "^4.4.2",
+    "@gltf-transform/functions": "^4.4.2",
+    "@types/node": "^26.2.0",
+    "@types/three": "^0.185.0",
+    "meshoptimizer": "^1.2.0",
+    "prettier": "^3.4.2",
+    "sharp": "^0.35.3",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.3",
+    "vitest": "^3.2.7",
+    "yauzl-promise": "^4.0.0"
+  }
+}
