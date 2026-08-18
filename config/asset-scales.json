@@ -1,9 +1,9 @@
 {
-  "_comment": "Fator para converter cada kit Kenney em metros. Os kits não compartilham escala: o Building Kit já é métrico (porta de 2,1 m), o Road Pack usa tiles de 1x1 unidade e o Mini Characters tem 0,67 unidade de altura. Conferir na cena ?scene=smoke, que põe uma referência de 1,80 m ao lado.",
+  "_comment": "Fator para converter cada kit Kenney em metros. Os kits não compartilham escala: o Building Kit já é métrico (porta de 2,1 m), o Road Pack usa tiles de 1x1 unidade e e o Animated Characters Bundle vem em centímetros (376 unidades de altura). Conferir na cena ?scene=smoke, que põe uma referência de 1,80 m ao lado.",
   "_reference": "1 unidade do mundo = 1 metro.",
   "default": 1.0,
   "packs": {
-    "mini-characters": 2.65,
+    "animated-characters-bundle": 0.00478,
     "weapon-pack": 1.15,
     "blaster-kit": 1.15,
     "car-kit": 1.35,

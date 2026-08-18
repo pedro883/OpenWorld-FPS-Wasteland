@@ -10,7 +10,7 @@ sem exigência de atribuição. A atribuição abaixo é mantida por boa prátic
 Subpacotes usados neste projeto (lista completa e justificada em
 [`ASSETS_INVENTORY.md`](ASSETS_INVENTORY.md)):
 
-**3D** — Mini Characters · Weapon Pack · Blaster Kit · Car Kit · Racing Kit · Nature Kit ·
+**3D** — Animated Characters Bundle · Weapon Pack · Blaster Kit · Car Kit · Racing Kit · Nature Kit ·
 Survival Kit · Food Kit · Furniture Kit · Road Pack · City Kit (Roads, Suburban,
 Commercial, Industrial) · Factory Kit · Modular Buildings · Building Kit ·
 Tower Defense Kit · Prototype Kit

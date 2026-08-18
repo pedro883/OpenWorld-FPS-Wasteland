@@ -10,9 +10,9 @@
       "wheelRadiusMeters": 0.34
     },
     "tyre": {
-      "_comment": "gripLateral segura a derrapagem; reduzi-lo faz o carro deslizar. gripLongitudinal transfere torque ao chão.",
-      "gripLateral": 5.2,
-      "gripLongitudinal": 3.4,
+      "_comment": "Coeficientes de atrito: o pneu entrega no máximo grip x carga_normal de força naquele canto. 1.0 é o limite de um pneu de rua real; acima disso é aderência de arcade. gripLateral segura a derrapagem, gripLongitudinal transfere torque ao chão.",
+      "gripLateral": 2.0,
+      "gripLongitudinal": 1.8,
       "handbrakeGripMultiplier": 0.22,
       "flatTyreGripMultiplier": 0.35,
       "rollingResistance": 0.014
@@ -116,7 +116,7 @@
       "trackWidth": 1.6,
       "hullHalfExtents": [0.85, 0.45, 1.6],
       "suspension": { "travelMeters": 0.42, "stiffness": 30000, "damping": 2600 },
-      "tyre": { "gripLateral": 4.2, "gripLongitudinal": 4.0 }
+      "tyre": { "gripLateral": 1.55, "gripLongitudinal": 1.9 }
     }
   },
 

@@ -647,7 +647,7 @@ export class WorldScene implements Scene {
     // Recentres when the mouse is still, like a head returning to the road.
     if (Math.abs(input.mouseDX) < 0.5) this.driveYaw *= Math.max(0, 1 - dt * 1.6);
 
-    const yaw = vehicle.yaw + this.driveYaw;
+    const yaw = vehicle.cameraYaw + this.driveYaw;
     const pitch = this.drivePitch;
 
     if (this.firstPersonDrive) {

@@ -16,6 +16,8 @@ export interface ModelEntry {
   bounds: ModelBounds;
   triangles: number;
   animations?: string[];
+  /** Model whose clips drive this one, for bodies sharing a skeleton. */
+  rig?: string;
 }
 
 export interface CategoryInfo {
@@ -37,6 +39,9 @@ export interface Manifest {
   icons: Record<string, string>;
 }
 
+/** Character skin textures, written next to the GLBs by build-characters.mjs. */
+type SkinIndex = Record<string, string>;
+
 interface LoadedCategory {
   gltf: GLTF;
   /** Node name -> the merged group for that model. */
@@ -45,6 +50,14 @@ interface LoadedCategory {
 }
 
 const PACK_SCALES = scaleConfig.packs as Record<string, number>;
+
+function hasSkinnedMesh(root: THREE.Object3D): boolean {
+  let found = false;
+  root.traverse((obj) => {
+    if ((obj as THREE.SkinnedMesh).isSkinnedMesh) found = true;
+  });
+  return found;
+}
 
 /**
  * Loads the merged category GLBs produced by tools/build-assets.mjs.
@@ -59,6 +72,10 @@ class AssetManager {
   private readonly loaded = new Map<string, LoadedCategory>();
   private readonly pending = new Map<string, Promise<LoadedCategory>>();
   private readonly audioBuffers = new Map<string, AudioBuffer>();
+  private readonly skinTextures = new Map<string, THREE.Texture>();
+  private skins: SkinIndex | null = null;
+  private skinsPending: Promise<SkinIndex> | null = null;
+  private readonly textureLoader = new THREE.TextureLoader();
 
   async init(): Promise<void> {
     if (this.manifest) return;
@@ -172,8 +189,10 @@ class AssetManager {
     const source = category?.nodes.get(entry.node);
     if (!source) return null;
 
-    const isSkinned = category!.clips.has(entry.node);
-    const instance = isSkinned ? cloneSkinned(source) : source.clone(true);
+    // Detected from the mesh rather than from "does it own clips": bodies that
+    // borrow another body's rig own none, and a plain clone would leave their
+    // skinning unbound.
+    const instance = hasSkinnedMesh(source) ? cloneSkinned(source) : source.clone(true);
     instance.name = id;
     const scale = options.scale ?? this.scaleFor(id);
     if (scale !== 1) instance.scale.multiplyScalar(scale);
@@ -190,7 +209,61 @@ class AssetManager {
   clips(id: string): THREE.AnimationClip[] {
     const entry = this.entry(id);
     if (!entry) return [];
-    return this.loaded.get(entry.category)?.clips.get(entry.node) ?? [];
+    const own = this.loaded.get(entry.category)?.clips.get(entry.node);
+    if (own?.length) return own;
+    // Bodies sharing a skeleton borrow the rig owner's clips; they bind by bone
+    // name, so the same tracks drive any body in the pack.
+    return entry.rig ? this.clips(entry.rig) : [];
+  }
+
+  /**
+   * Scale that makes a model a given height in metres.
+   *
+   * The four Kenney bodies are not authored at one height, so a single per-pack
+   * factor would leave them a head apart from each other.
+   */
+  scaleToHeight(id: string, metres: number): number {
+    const entry = this.entry(id);
+    if (!entry) return 1;
+    const height = entry.bounds.max[1] - entry.bounds.min[1];
+    return height > 0 ? metres / height : 1;
+  }
+
+  /** Names of the character skins the pipeline produced. */
+  async skinNames(): Promise<string[]> {
+    return Object.keys(await this.loadSkins());
+  }
+
+  /**
+   * A character skin texture, cached. The bundle is one mesh with a swappable
+   * colour map, so every NPC look costs a texture rather than a model.
+   */
+  async skin(name: string): Promise<THREE.Texture | null> {
+    const cached = this.skinTextures.get(name);
+    if (cached) return cached;
+    const index = await this.loadSkins();
+    const url = index[name];
+    if (!url) return null;
+    const texture = await this.textureLoader.loadAsync(url);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.flipY = false;
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    this.skinTextures.set(name, texture);
+    return texture;
+  }
+
+  private async loadSkins(): Promise<SkinIndex> {
+    if (this.skins) return this.skins;
+    if (this.skinsPending) return this.skinsPending;
+    this.skinsPending = fetch('assets/skins/index.json')
+      .then((r) => (r.ok ? (r.json() as Promise<SkinIndex>) : {}))
+      .catch(() => ({}))
+      .then((index) => {
+        this.skins = index;
+        return index;
+      });
+    return this.skinsPending;
   }
 
   /** Size in metres after the kit scale is applied. */

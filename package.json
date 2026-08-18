@@ -14,7 +14,8 @@
     "lint": "eslint src tools --ext .ts,.mjs",
     "format": "prettier --write \"src/**/*.ts\" \"tools/**/*.mjs\" \"config/*.json\"",
     "assets:inventory": "node tools/inventory.mjs",
-    "assets:build": "node tools/build-assets.mjs"
+    "assets:characters": "node tools/build-characters.mjs",
+    "assets:build": "node tools/build-characters.mjs && node tools/build-assets.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",

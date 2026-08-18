@@ -570,3 +570,139 @@ curva de torque e permanece um número de config, ajustável sem tocar em códig
 
 Disparo de dentro do veículo pelas janelas, IA dirigindo (o nó `ManVehicle` da árvore
 existe mas não foi ligado), helicóptero e espelho/minimapa.
+
+---
+
+## Correções após teste em jogo — direção e personagens
+
+### O carro dirigia ao contrário
+
+Os modelos de veículo da Kenney apontam para **+Z**: seus nós `wheel-front-*`
+ficam em Z positivo e os `wheel-back-*` em Z negativo. O código de direção usava
+`-Z` como frente, que é a convenção normal de um objeto three.js. As duas coisas
+juntas produziam exatamente o que se via:
+
+- `W` empurrava o carro para o lado da traseira, enquanto a câmera olhava para o
+  nariz — ou seja, o carro andava de ré na tela;
+- as rodas **traseiras** eram as que esterçavam, e esterçar pelo eixo de trás
+  inverte o sentido da curva, então `A` virava para a direita.
+
+Era um sinal só. `forward` passou a ser `+Z` e `right` a acompanhar; a geometria
+das rodas já estava certa (dianteiras esterçam, traseiras tracionam). O ângulo
+do corpo ganhou dois nomes distintos — `heading`, para onde o nariz aponta, e
+`cameraYaw`, meia volta adiante porque uma câmera three.js olha pelo próprio
+`-Z`. Sem essa distinção o `recover()` levantava o carro capotado virado ao
+contrário, o que também acontecia.
+
+### O carro derrapava como se o chão fosse gelo
+
+O atrito lateral do pneu estava **cerca de duzentas vezes fraco**. A fórmula
+multiplicava o impulso por um `0.06` arbitrário *e* dividia a carga da roda pelo
+peso do próprio carro, o que já a deixava perto de 0,25 antes de qualquer outra
+coisa. O resultado era um veículo que praticamente não resistia a andar de lado.
+
+Agora é atrito de Coulomb honesto: cancelar o escorregamento custa
+`massa × velocidade_lateral` de impulso, e o pneu entrega no máximo
+`grip × carga_normal × dt`. `gripLateral` e `gripLongitudinal` viraram
+coeficientes de atrito de verdade em `config/vehicles.json` (2,0 e 1,8; 1,0 é o
+limite de um pneu de rua real, acima disso é aderência de arcade).
+
+O impulso lateral é aplicado **na altura do centro de massa**, não no cubo da
+roda. Uma força lateral aplicada abaixo do centro também rola o carro, e com
+essa aderência uma curva forte o deitaria; só o braço horizontal é que faz o
+carro girar, então achatar o ponto de aplicação preserva a curva e descarta o
+capotamento. Tração e freio continuam no cubo, para o carro ainda mergulhar na
+freada. O freio também ganhou um limite que impede de arrastar a roda para trás
+do zero.
+
+**Medido em jogo** (Hatch Civil, terreno da vila):
+
+| | |
+|---|---|
+| Acelerar em linha reta | 16,41 m percorridos, **16,41 m na direção do nariz** |
+| Arrancada | 0 → 24,3 km/h no primeiro segundo |
+| `A` com o carro andando | gira **+88,2°**, ou seja, para a esquerda |
+| Derrapagem nessa curva | 20% da velocidade é lateral (era praticamente toda) |
+
+Uma roda também aparecia flutuando um raio acima do chão: `frame()` somava o
+raio da roda a uma altura que já o continha.
+
+### Agachar abria os braços dos inimigos
+
+A causa não era a animação de agachar em si: é que ela é um clip de **corpo
+inteiro** e anima os braços tanto quanto as pernas. Tocada num inimigo que
+segura um fuzil, as tracks de braço do agachamento simplesmente sobrescreviam a
+pose da arma.
+
+Trocamos o pack de personagens, como pedido, para o **Animated Characters
+Bundle** — que é o único da Kenney com rig humanoide de verdade (46 ossos de
+deformação, com coluna, ombro, antebraço, mão e dedos, contra os 7 nós do Mini
+Characters) e com `crouchIdle`, `crouchWalk` e `shoot` como clips separados. É
+esse rig que torna possível a correção de verdade: `src/anim/characterAnimator.ts`
+divide cada clip por osso e toca **duas camadas** — pernas e quadril de um clip,
+coluna para cima de outro. Como os dois conjuntos de tracks são disjuntos, eles
+compõem sem peso de blend nenhum. O quadril fica na camada de baixo, então
+agachar continua baixando o corpo inteiro.
+
+Medido no corpo que *empresta* o rig (o caso arriscado), comparando a mão
+direita em relação ao quadril:
+
+| | mão em relação ao quadril | quadril |
+|---|---|---|
+| Em pé, mirando | 0,185 / 0,115 / 0,307 | 24,803 |
+| Agachado, mirando | 0,175 / 0,116 / 0,312 | 24,530 |
+| Agachado com o clip inteiro (o bug) | **0,548** / **0,316** / 0,128 | 24,530 |
+
+O quadril desce 27 cm nos dois casos — o agachamento é real. Mas com o clip
+inteiro a mão salta **37 cm para fora e 20 cm para cima**: os braços abrindo,
+medidos. Com a máscara ela anda 1 cm.
+
+### O pipeline de FBX
+
+O bundle só vem em `.fbx` e `.blend`, e não há Blender nem conversor nativo
+nesta máquina. `tools/build-characters.mjs` resolve isso com o próprio three:
+`FBXLoader` lê os arquivos em Node e `GLTFExporter` reescreve em GLB, com dois
+`globalThis` de fachada porque o exportador relê o próprio Blob por `FileReader`.
+Depois disso o `build-assets.mjs` trata o resultado como qualquer outro kit
+Kenney.
+
+Duas economias fazem isso caber no orçamento:
+
+- **Keyframes constantes viram um só.** Um clip humanoide carrega posição,
+  rotação e escala dos 58 ossos, mas na maioria deles nada se mexe. Descartar
+  essas tracks seria errado — uma track constante ainda precisa *pôr* o osso
+  naquele ângulo, e sem ela o osso volta para a bind pose, de braços abertos.
+  Guardar um keyframe preserva a pose e joga fora a repetição: 64.032 → 12.295.
+- **Um único conjunto de clips.** Os quatro corpos dividem o mesmo esqueleto, e
+  clips casam por nome de osso, então só o `character-medium` carrega os 17
+  clips; os outros apontam para ele pelo campo `rig` do manifest.
+
+O merge de quatro corpos num GLB só colide os nomes de osso e o pipeline os
+sufixa (`Hips` vira `Hips_2`). Um clip carrega o sufixo do corpo com que foi
+exportado, então ele só casaria com aquele corpo — e todos os outros cairiam na
+bind pose, de braços abertos outra vez. O animador rebinda por nome base, o que
+imuniza contra isso.
+
+`characters.glb`: 787 KB com 17 clips e 4 corpos (o pack anterior eram 560 KB).
+
+### Arma na mão, e não flutuando ao lado
+
+O fuzil agora é filho do osso `RightHand`, então acompanha a mira, o agachamento
+e o recuo. Duas coisas tiveram de sair de números mágicos:
+
+- o rig Kenney tem uma escala de cem vezes própria, então o fator a desfazer vem
+  da escala **do osso**, não da escala do corpo;
+- a orientação é derivada uma vez, na pose de mira: `mão⁻¹ × corpo` alinha o cano
+  (o `+Z` da arma) com a frente do personagem. Nenhum Euler ajustado à mão.
+
+O clip `shoot` da Kenney não serve inteiro para um fuzil: em 1,07 s o braço leva
+a arma até a **vertical** e volta, e o inimigo passaria metade da rajada
+apontando para o céu. Só os 0,1 s iniciais são recuo de verdade, e recortados em
+ping-pong a arma chuta e assenta enquanto o gatilho estiver preso. Medido
+atirando agachado, o cano fica entre 0,87 e 0,99 de alinhamento com a frente.
+
+**Pendências que isto deixa:** o bundle não tem clip de deitar (`prone`) — nem o
+pack anterior tinha —, então o inimigo agacha mas não deita; os acessórios do
+pack (capacete, mochila, colete militares) estão convertíveis mas não foram
+ligados; e `character-large-male` e `character-large-female` saem do zip com a
+mesma malha, o que parece ser do pack e não da conversão.

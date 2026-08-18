@@ -4,6 +4,7 @@ import { assets } from '../core/assets';
 import type { PhysicsWorld } from '../physics/world';
 import { ZoneHealth, type Zone } from './health';
 import { HitboxSet } from './hitboxes';
+import { CharacterAnimator, findNode } from '../anim/characterAnimator';
 import type { Damageable } from '../combat/types';
 import { AmmoPouch } from '../combat/arsenal';
 import { Weapon } from '../combat/weapon';
@@ -46,12 +47,43 @@ interface SkillDef {
 // directly; the cast pins it to the four real skill levels.
 const SKILLS = aiConfig.skills as unknown as Record<SkillLevel, SkillDef>;
 
+/** Body and height in metres; the bundle's bodies are not authored to scale. */
 const MODELS = [
-  'mini-characters/character-male-c',
-  'mini-characters/character-male-e',
-  'mini-characters/character-female-b',
-  'mini-characters/character-female-d',
+  { id: 'animated-characters-bundle/character-medium', height: 1.78 },
+  { id: 'animated-characters-bundle/character-large-male', height: 1.86 },
+  { id: 'animated-characters-bundle/character-large-female', height: 1.72 },
+  { id: 'animated-characters-bundle/character-small', height: 1.66 },
 ];
+
+/** One mesh, many looks: the skin is a texture swap, not another model. */
+const SKINS = [
+  'militaryMaleA',
+  'militaryMaleB',
+  'militaryFemaleA',
+  'militaryFemaleB',
+  'survivorMaleA',
+  'survivorMaleB',
+  'survivorFemaleA',
+  'survivorFemaleB',
+];
+
+/** One material per skin, shared by every NPC wearing it. */
+const skinMaterials = new WeakMap<THREE.Material, Map<THREE.Texture, THREE.Material>>();
+
+function skinMaterial(base: THREE.Material, skin: THREE.Texture): THREE.Material {
+  let bySkin = skinMaterials.get(base);
+  if (!bySkin) {
+    bySkin = new Map();
+    skinMaterials.set(base, bySkin);
+  }
+  const cached = bySkin.get(skin);
+  if (cached) return cached;
+  const material = base.clone() as THREE.MeshStandardMaterial;
+  material.map = skin;
+  material.needsUpdate = true;
+  bySkin.set(skin, material);
+  return material;
+}
 
 let nextId = 1;
 
@@ -92,9 +124,7 @@ export class Npc implements Damageable, SquadMember {
   private readonly tree: Node;
   private readonly skill: SkillDef;
 
-  private mixer: THREE.AnimationMixer | null = null;
-  private currentClip = '';
-  private readonly clips = new Map<string, THREE.AnimationClip>();
+  private animator: CharacterAnimator | null = null;
 
   private yaw = 0;
   private targetYaw = 0;
@@ -146,20 +176,56 @@ export class Npc implements Damageable, SquadMember {
     variant = 0,
   ): Promise<Npc> {
     const npc = new Npc(deps, spawn, skillLevel, weaponId);
-    const id = MODELS[variant % MODELS.length]!;
-    const model = await assets.instantiate(id);
+    const body = MODELS[variant % MODELS.length]!;
+    const modelScale = assets.scaleToHeight(body.id, body.height);
+    const model = await assets.instantiate(body.id, { scale: modelScale });
     npc.root.add(model);
-    for (const clip of assets.clips(id)) npc.clips.set(clip.name, clip);
-    if (npc.clips.size) {
-      npc.mixer = new THREE.AnimationMixer(model);
-      npc.play('idle');
+
+    const skin = await assets.skin(SKINS[variant % SKINS.length]!);
+    if (skin) {
+      // The material is cloned per skin, not per NPC, so two soldiers wearing
+      // the same fatigues still share one material and one draw call.
+      model.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.material = skinMaterial(mesh.material as THREE.Material, skin);
+      });
     }
-    // The weapon rides in the right hand so the silhouette reads as armed.
+
+    const clips = assets.clips(body.id);
+    if (clips.length) {
+      npc.animator = new CharacterAnimator(model, clips);
+      npc.animator.set('idle', 'aim');
+      // Settle the pose before the weapon is fitted: measuring the hand while
+      // the skeleton is still in its bind pose leaves the barrel tilted up.
+      npc.animator.update(0);
+    }
+
+    // The weapon rides in the right hand, so it follows the aim and the crouch
+    // instead of floating at a fixed offset from the feet.
     const weaponModel = await assets.instantiate(npc.weapon.def.model);
-    weaponModel.scale.multiplyScalar(0.9);
-    weaponModel.position.set(0.28, 1.15, 0.16);
-    weaponModel.rotation.set(0, Math.PI, 0);
-    npc.root.add(weaponModel);
+    const hand = findNode(model, 'RightHand');
+    if (hand) {
+      model.updateWorldMatrix(true, true);
+      // The Kenney rig carries a hundredfold scale of its own, so the factor to
+      // undo comes from the bone itself rather than from the body's scale.
+      const handScale = hand.getWorldScale(new THREE.Vector3()).x || 1;
+      weaponModel.scale.multiplyScalar(0.9 / handScale);
+      // Grip roughly at the palm, in metres, converted into the bone's units.
+      weaponModel.position.set(0, 0.02, 0.04).divideScalar(handScale);
+      // Point the barrel — the weapon's +Z — where the NPC is looking, once, in
+      // the aim pose. After that the weapon just rides the hand, so the barrel
+      // stays true through the crouch and the recoil without any tuned Euler.
+      const handRotation = hand.getWorldQuaternion(new THREE.Quaternion()).invert();
+      const bodyRotation = model.getWorldQuaternion(new THREE.Quaternion());
+      weaponModel.quaternion.copy(handRotation.multiply(bodyRotation));
+      hand.add(weaponModel);
+    } else {
+      weaponModel.scale.multiplyScalar(0.9);
+      weaponModel.position.set(0.28, 1.15, 0.16);
+      weaponModel.rotation.set(0, Math.PI, 0);
+      npc.root.add(weaponModel);
+    }
     return npc;
   }
 
@@ -233,7 +299,7 @@ export class Npc implements Damageable, SquadMember {
   }
 
   update(dt: number, viewerDistance: number): void {
-    this.mixer?.update(dt);
+    this.animator?.update(dt);
     this.health.update(dt);
 
     if (!this.health.alive) {
@@ -312,28 +378,18 @@ export class Npc implements Damageable, SquadMember {
     this.updateAnimation();
   }
 
+  /**
+   * Legs and arms are chosen separately: the legs say where the agent is and
+   * how it is standing, the arms say what it is doing with the rifle. Driving
+   * both from one clip is what made a crouching NPC throw its arms open.
+   */
   private updateAnimation(): void {
-    let clip = 'idle';
-    if (this.speed > 4.2) clip = 'sprint';
-    else if (this.speed > 0.3) clip = 'walk';
-    if (this.isSuppressed) clip = this.speed > 0.3 ? 'crouch' : 'crouch';
-    if (this.firing) clip = 'holding-both-shoot';
-    this.play(clip);
-  }
-
-  private play(name: string): void {
-    if (!this.mixer || this.currentClip === name) return;
-    const clip = this.clips.get(name) ?? this.clips.get('idle');
-    if (!clip) return;
-    const action = this.mixer.clipAction(clip);
-    const previous = this.currentClip ? this.clips.get(this.currentClip) : null;
-    if (previous) {
-      const from = this.mixer.clipAction(previous);
-      action.reset().crossFadeFrom(from, 0.18, false).play();
-    } else {
-      action.reset().play();
-    }
-    this.currentClip = name;
+    const moving = this.speed > 0.3;
+    let legs: string;
+    if (this.isSuppressed) legs = moving ? 'crouch-walk' : 'crouch-idle';
+    else if (this.speed > 4.2) legs = 'run';
+    else legs = moving ? 'walk' : 'idle';
+    this.animator?.set(legs, this.firing ? 'fire' : 'aim');
   }
 
   private die(): void {
@@ -341,14 +397,7 @@ export class Npc implements Damageable, SquadMember {
     this.firing = false;
     this.goal = null;
     this.hitboxes.dispose();
-    const die = this.clips.get('die');
-    if (this.mixer && die) {
-      this.mixer.stopAllAction();
-      const action = this.mixer.clipAction(die);
-      action.setLoop(THREE.LoopOnce, 1);
-      action.clampWhenFinished = true;
-      action.play();
-    }
+    this.animator?.once('die');
     this.squad?.remove(this.id);
   }
 

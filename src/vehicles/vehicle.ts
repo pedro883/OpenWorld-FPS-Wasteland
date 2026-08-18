@@ -100,6 +100,7 @@ export class Vehicle {
   private readonly input: VehicleInput = { throttle: 0, brake: 0, steer: 0, handbrake: false };
   private readonly tmpA = new THREE.Vector3();
   private readonly tmpB = new THREE.Vector3();
+  private readonly tmpC = new THREE.Vector3();
   private readonly quat = new THREE.Quaternion();
 
   constructor(
@@ -143,6 +144,7 @@ export class Vehicle {
     const halfBase = def.wheelbase / 2;
     const halfTrack = def.trackWidth / 2;
     const wheelY = -half[1]! + 0.05;
+    // Front wheels steer, rear wheels drive; +Z is the nose, as in the models.
     for (const [x, z, steered, driven] of [
       [-halfTrack, halfBase, true, false],
       [halfTrack, halfBase, true, false],
@@ -295,8 +297,12 @@ export class Vehicle {
     this.quat.set(r.x, r.y, r.z, r.w);
     const t = this.body.translation();
     const up = this.tmpA.set(0, 1, 0).applyQuaternion(this.quat).clone();
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.quat);
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.quat);
+    // The Kenney vehicles face +Z: their `wheel-front-*` nodes sit at positive Z
+    // and their `wheel-back-*` at negative. Driving along -Z, as three.js
+    // objects usually do, ran the car tail-first and put the steering on the
+    // rear axle, which is what made every control feel reversed.
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.quat);
+    const right = new THREE.Vector3(-1, 0, 0).applyQuaternion(this.quat);
 
     // Steering angle eases in so the car does not snap sideways.
     const maxSteer = 0.55 * (1 - Math.min(0.65, this.speedKph / this.def.topSpeedKph));
@@ -335,7 +341,7 @@ export class Vehicle {
       const springForce =
         compression * this.suspension.stiffness + compressionVelocity * this.suspension.damping;
       if (springForce > 0) {
-        this.applyForceAt(up.clone().multiplyScalar(springForce * dt), worldPos);
+        this.applyImpulseAt(up.clone().multiplyScalar(springForce * dt), worldPos);
       }
 
       // Tyre axes at this wheel, with the steering angle folded into the fronts.
@@ -347,29 +353,50 @@ export class Vehicle {
       const lateralSpeed = pointVelocity.dot(wheelRight);
       const forwardSpeed = pointVelocity.dot(wheelForward);
 
-      const load = Math.max(0, springForce) / (this.def.massKg * 9.81);
-      let lateralGrip = this.tyre.gripLateral * load;
+      const normalForce = Math.max(0, springForce);
+      const wheelMass = this.def.massKg / this.wheels.length;
+
+      let lateralGrip = this.tyre.gripLateral;
       if (wheel.health <= 0) lateralGrip *= this.tyre.flatTyreGripMultiplier;
       if (this.input.handbrake && !wheel.steered) {
         lateralGrip *= this.tyre.handbrakeGripMultiplier;
       }
 
-      // Lateral friction is what stops a car sliding sideways; without it the
-      // vehicle behaves like a hovercraft.
-      const lateralImpulse = -lateralSpeed * lateralGrip * this.def.massKg * dt * 0.06;
-      this.applyForceAt(wheelRight.clone().multiplyScalar(lateralImpulse), worldPos);
+      // Coulomb friction: cancelling the sideways slip takes `mass * slip` of
+      // impulse and the tyre can supply at most `grip * load * dt` of it. The
+      // previous version scaled that by an arbitrary 0.06 *and* divided the load
+      // by the car's own weight, landing about two hundred times short — which
+      // is exactly why the car skated as if the road were ice.
+      const maxLateral = lateralGrip * normalForce * dt;
+      const lateralImpulse = THREE.MathUtils.clamp(
+        -lateralSpeed * wheelMass,
+        -maxLateral,
+        maxLateral,
+      );
+      // Applied level with the centre of mass rather than down at the hub: a
+      // sideways impulse below the centre also rolls the car, and at this grip
+      // level a hard turn would put it on its roof. Only the horizontal lever
+      // arm steers, so flattening the point keeps the yaw and drops the roll.
+      this.applyImpulseAt(
+        wheelRight.clone().multiplyScalar(lateralImpulse),
+        this.tmpC.set(worldPos.x, t.y, worldPos.z),
+      );
 
-      let longitudinal = 0;
-      if (wheel.driven) longitudinal += driveForce;
-      const braking = this.input.brake * DEFAULTS.brakes.force;
-      const handbrake = this.input.handbrake && !wheel.steered ? DEFAULTS.brakes.handbrakeForce : 0;
-      const brakeForce = (braking + handbrake) * Math.sign(forwardSpeed);
-      longitudinal -= brakeForce;
-      longitudinal -= forwardSpeed * this.tyre.rollingResistance * this.def.massKg;
+      let longitudinalImpulse = wheel.driven ? driveForce * dt : 0;
+      const brakeForce =
+        this.input.brake * DEFAULTS.brakes.force +
+        (this.input.handbrake && !wheel.steered ? DEFAULTS.brakes.handbrakeForce : 0);
+      // Brakes stop the wheel; they never drag it backwards through zero.
+      const brakeImpulse = Math.min(brakeForce * dt, Math.abs(forwardSpeed) * wheelMass);
+      longitudinalImpulse -= Math.sign(forwardSpeed) * brakeImpulse;
+      longitudinalImpulse -= forwardSpeed * this.tyre.rollingResistance * wheelMass;
 
-      const maxTraction = this.tyre.gripLongitudinal * load * this.def.massKg * 3;
-      longitudinal = THREE.MathUtils.clamp(longitudinal, -maxTraction, maxTraction);
-      this.applyForceAt(wheelForward.clone().multiplyScalar(longitudinal * dt), worldPos);
+      let longitudinalGrip = this.tyre.gripLongitudinal;
+      if (wheel.health <= 0) longitudinalGrip *= this.tyre.flatTyreGripMultiplier;
+      const maxTraction = longitudinalGrip * normalForce * dt;
+      longitudinalImpulse = THREE.MathUtils.clamp(longitudinalImpulse, -maxTraction, maxTraction);
+      // Drive and braking stay at the hub, so the car still squats and dives.
+      this.applyImpulseAt(wheelForward.clone().multiplyScalar(longitudinalImpulse), worldPos);
 
       wheel.spinAngle += (forwardSpeed / this.suspension.wheelRadiusMeters) * dt;
     }
@@ -388,7 +415,8 @@ export class Vehicle {
     this.consumeFuel(dt, groundedCount > 0);
   }
 
-  private applyForceAt(impulse: THREE.Vector3, at: THREE.Vector3): void {
+  /** Applies an impulse, in newton-seconds, at a world point. */
+  private applyImpulseAt(impulse: THREE.Vector3, at: THREE.Vector3): void {
     this.body.applyImpulseAtPoint(
       { x: impulse.x, y: impulse.y, z: impulse.z },
       { x: at.x, y: at.y, z: at.z },
@@ -541,17 +569,28 @@ export class Vehicle {
   recover(): void {
     const t = this.body.translation();
     this.body.setTranslation({ x: t.x, y: t.y + 1.2, z: t.z }, true);
-    const yaw = this.yaw;
+    const yaw = this.heading;
     this.body.setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }, true);
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
   }
 
-  get yaw(): number {
+  /** Where the nose points, in world yaw radians. */
+  get heading(): number {
     const r = this.body.rotation();
     const q = this.quat.set(r.x, r.y, r.z, r.w);
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
     return Math.atan2(forward.x, forward.z);
+  }
+
+  /**
+   * Yaw for a camera that should look where the car is going. A three.js camera
+   * looks down its own -Z while these models face +Z, so the two are half a turn
+   * apart; naming it keeps that offset out of the camera code — and out of
+   * `recover()`, which used to stand a rolled car back up facing backwards.
+   */
+  get cameraYaw(): number {
+    return this.heading + Math.PI;
   }
 
   get isUpsideDown(): boolean {
@@ -572,7 +611,9 @@ export class Vehicle {
       const drop = wheel.grounded
         ? this.suspension.restLengthMeters - wheel.lastCompression
         : this.suspension.restLengthMeters;
-      wheel.mesh.position.set(wheel.local.x, wheel.local.y - drop + this.suspension.wheelRadiusMeters, wheel.local.z);
+      // `drop` already puts the hub one wheel radius above the contact patch,
+      // so adding the radius again left every wheel hovering off the ground.
+      wheel.mesh.position.set(wheel.local.x, wheel.local.y - drop, wheel.local.z);
       wheel.mesh.rotation.set(
         wheel.spinAngle,
         wheel.steered ? this.steerAngle : 0,

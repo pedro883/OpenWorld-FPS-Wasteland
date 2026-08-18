@@ -221,6 +221,12 @@ async function buildCategory(category, models) {
     }
     if (names.length) animations[model.id] = names;
 
+    // Bodies that share a skeleton also share one clip set: emitting all of it
+    // per body would multiply the animation data for nothing, since clips bind
+    // by bone name. The clip-less ones point at the body that carries them.
+    const rig = SELECTED_3D[model.pack]?.rig;
+    const borrowsRig = rig && !names.length ? `${slug(model.pack)}/${rig}` : null;
+
     entries[model.id] = {
       category,
       node: nodeName,
@@ -228,6 +234,7 @@ async function buildCategory(category, models) {
       bounds: nodeBounds(group),
       triangles: countTriangles(group),
       ...(names.length ? { animations: names } : {}),
+      ...(borrowsRig && borrowsRig !== model.id ? { rig: borrowsRig } : {}),
     };
   }
 

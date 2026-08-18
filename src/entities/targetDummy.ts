@@ -6,11 +6,14 @@ import { HitboxSet } from './hitboxes';
 import type { Damageable } from '../combat/types';
 
 const MODEL_IDS = [
-  'mini-characters/character-male-b',
-  'mini-characters/character-male-d',
-  'mini-characters/character-female-c',
-  'mini-characters/character-female-e',
+  'animated-characters-bundle/character-medium',
+  'animated-characters-bundle/character-large-male',
+  'animated-characters-bundle/character-large-female',
+  'animated-characters-bundle/character-small',
 ];
+
+/** Every dummy stands 1.78 m tall, so the hitbox layout reads the same. */
+const DUMMY_HEIGHT_METRES = 1.78;
 
 /**
  * Stationary humanoid with one collider per damage zone. Used to prove that
@@ -49,7 +52,7 @@ export class TargetDummy implements Damageable {
   ): Promise<TargetDummy> {
     const dummy = new TargetDummy(physics, scene, position, facing);
     const id = MODEL_IDS[variant % MODEL_IDS.length]!;
-    const model = await assets.instantiate(id);
+    const model = await assets.instantiate(id, { scale: assets.scaleToHeight(id, DUMMY_HEIGHT_METRES) });
     dummy.root.add(model);
     model.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
@@ -62,7 +65,7 @@ export class TargetDummy implements Damageable {
     const clips = assets.clips(id);
     if (clips.length) {
       dummy.mixer = new THREE.AnimationMixer(model);
-      const idle = clips.find((c) => c.name === 'holding-both') ?? clips.find((c) => c.name === 'idle');
+      const idle = clips.find((c) => c.name === 'idle');
       if (idle) dummy.mixer.clipAction(idle).play();
     }
     return dummy;

@@ -103,7 +103,7 @@ const SUBSTITUTIONS = [
   '| *Tools* | **Survival Kit** + **Food Kit** | Ferramentas e consumíveis vivem dentro desses kits. |',
   '| *Roads/Race Track* | **Road Pack** + **City Kit - Roads** | Nomes reais dos kits de via. |',
   '| *Kenney Fonts* | **Other/Fonts** | As fontes ficam na raiz Other/, fora de 2D assets. |',
-  '| *Animated Characters* para o jogador | **Mini Characters** | Os packs animados só trazem FBX/blend; o Mini Characters já vem em GLB com rig e um set de animações maior. |',
+  '| *Animated Characters* para o jogador | **Animated Characters Bundle** | É o pack pedido. Só vem em FBX, então `tools/build-characters.mjs` converte para GLB com o FBXLoader do próprio three — sem Blender. |',
   '| Conversão de áudio para .ogg via ffmpeg | cópia direta | Todo o áudio Kenney **já é .ogg**; converter seria reencodificar com perda, sem ganho. |',
 ];
 

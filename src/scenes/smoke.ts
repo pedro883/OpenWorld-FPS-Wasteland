@@ -6,7 +6,7 @@ import { debugOverlay } from '../debug/overlay';
 
 /** One model per category, lined up against a 1.8 m human for scale checking. */
 const SHOWCASE: Array<{ id: string; label: string }> = [
-  { id: 'mini-characters/character-male-a', label: 'characters' },
+  { id: 'animated-characters-bundle/character-medium', label: 'characters' },
   { id: 'weapon-pack/sniper', label: 'weapons' },
   { id: 'survival-kit/barrel', label: 'props_loot' },
   { id: 'car-kit/sedan', label: 'vehicles' },

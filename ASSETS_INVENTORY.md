@@ -5,7 +5,7 @@ Gerado por `npm run assets:inventory`, lendo o zip diretamente — **nada é ext
 - Origem: `C:\Users\pedro\Downloads\Kenney Game Assets All-in-1 3.6.0.zip`
 - Arquivos no pacote: **88.346**
 - Tamanho descompactado: **975.1 MB**
-- Subpacotes: **269** — usados: **31** (254.2 MB crus)
+- Subpacotes: **269** — usados: **31** (286.8 MB crus)
 - Licença: **CC0 1.0 Universal** (uso comercial e modificação livres). Ver `CREDITS.md`.
 
 ## 3D/
@@ -14,12 +14,12 @@ Gerado por `npm run assets:inventory`, lendo o zip diretamente — **nada é ext
 
 | | Subpacote | Modelos (glb) | Formatos | Tamanho | Decisão |
 |---|---|---|---|---|---|
-| ⛔ | Animated Characters Bundle | 0 | .fbx 62, .blend 23 | 45.8 MB | Só FBX/blend; o rig e as animações que ele traz já existem, em GLB, no Mini Characters. |
-| ⛔ | Animated Characters Protagonists | 0 | .fbx 4 | 2.7 MB | Só FBX e apenas 3 animações; redundante com Mini Characters. |
-| ⛔ | Animated Characters Retro | 0 | .fbx 4 | 3.0 MB | Só FBX e apenas 3 animações; redundante com Mini Characters. |
-| ⛔ | Animated Characters Survivors | 0 | .fbx 4 | 2.9 MB | Só FBX e apenas 3 animações; redundante com Mini Characters. |
+| ✅ | Animated Characters Bundle | 0 | .fbx 62, .blend 23 | 45.8 MB | Único pack Kenney com rig humanoide de verdade (46 ossos de deformação: coluna, ombros, antebraços, mãos e dedos dos pés) e com crouchIdle/crouchWalk/shoot como clips separados — é o que permite agachar com as pernas mantendo os braços na arma. Só vem em FBX; tools/build-characters.mjs converte para GLB. |
+| ⛔ | Animated Characters Protagonists | 0 | .fbx 4 | 2.7 MB | Só idle/jump/run; o Animated Characters Bundle usa o mesmo rig e traz 16 clips. |
+| ⛔ | Animated Characters Retro | 0 | .fbx 4 | 3.0 MB | Só idle/jump/run; redundante com o Animated Characters Bundle. |
+| ⛔ | Animated Characters Survivors | 0 | .fbx 4 | 2.9 MB | Só idle/jump/run; as skins de sobrevivente já vêm no Animated Characters Bundle. |
 | ✅ | Blaster Kit | 40 | .fbx 40, .glb 40, .obj 40 | 4.3 MB | Peças modulares (canos, miras, carregadores, coronhas) para montar os acessórios da seção 4.3. |
-| ⛔ | Blocky Characters | 18 | .fbx 18, .glb 18, .obj 18 | 12.3 MB | Rigado e barato (72 tri), mas o estilo bloco destoa do Mini Characters escolhido. Candidato a LOD distante no futuro. |
+| ⛔ | Blocky Characters | 18 | .fbx 18, .glb 18, .obj 18 | 12.3 MB | Rigado e barato (72 tri), mas o estilo bloco destoa do rig escolhido. Candidato a LOD distante no futuro. |
 | ⛔ | Brick Kit | 296 | .fbx 296, .glb 296, .obj 296 | 14.6 MB | Tema fora do cenário pós-apocalíptico terrestre. |
 | ✅ | Building Kit | 79 | .fbx 79, .glb 79, .obj 79 | 4.3 MB | Blocos de fachada e telhado para variar os prédios dos POIs. |
 | ✅ | Car Kit | 50 | .fbx 50, .glb 50, .obj 50 | 13.8 MB | Civis e utilitários com body e wheel-front/back-left/right em nós separados — pronto para suspensão raycast. |
@@ -40,7 +40,7 @@ Gerado por `npm run assets:inventory`, lendo o zip diretamente — **nada é ext
 | ⛔ | Marble Kit | 162 | .fbx 162, .glb 162, .obj 162 | 12.4 MB | Tema fora do cenário pós-apocalíptico terrestre. |
 | ⛔ | Mini Arcade | 20 | .fbx 20, .glb 20, .obj 20 | 4.1 MB | Tema fora do cenário pós-apocalíptico terrestre. |
 | ⛔ | Mini Arena | 22 | .fbx 22, .glb 22, .obj 22 | 2.1 MB | Tema fora do cenário pós-apocalíptico terrestre. |
-| ✅ | Mini Characters | 26 | .fbx 26, .glb 26, .obj 26 | 13.2 MB | Único pack de personagem já em GLB com rig e 32 animações nomeadas (idle/walk/sprint/crouch/holding-both-shoot/die/drive). Nós nomeados head/torso/arm-*/leg-* servem de base para a vida por zonas. |
+| ⛔ | Mini Characters | 26 | .fbx 26, .glb 26, .obj 26 | 13.2 MB | Rig de 7 nós (torso/arm-*/leg-*) sem coluna nem cotovelo: o agachamento e a pose de arma disputam os mesmos ossos, então agachar abria os braços. Trocado pelo Animated Characters Bundle. |
 | ⛔ | Mini Dungeon | 25 | .fbx 25, .glb 25, .obj 25 | 3.8 MB | Tema fora do cenário pós-apocalíptico terrestre. |
 | ⛔ | Mini Forest | 22 | .fbx 22, .glb 22, .obj 22 | 3.1 MB | Tema fora do cenário pós-apocalíptico terrestre. |
 | ⛔ | Mini Market | 20 | .fbx 20, .glb 20, .obj 20 | 3.2 MB | Tema fora do cenário pós-apocalíptico terrestre. |
@@ -343,5 +343,5 @@ Gerado por `npm run assets:inventory`, lendo o zip diretamente — **nada é ext
 | *Tools* | **Survival Kit** + **Food Kit** | Ferramentas e consumíveis vivem dentro desses kits. |
 | *Roads/Race Track* | **Road Pack** + **City Kit - Roads** | Nomes reais dos kits de via. |
 | *Kenney Fonts* | **Other/Fonts** | As fontes ficam na raiz Other/, fora de 2D assets. |
-| *Animated Characters* para o jogador | **Mini Characters** | Os packs animados só trazem FBX/blend; o Mini Characters já vem em GLB com rig e um set de animações maior. |
+| *Animated Characters* para o jogador | **Animated Characters Bundle** | É o pack pedido. Só vem em FBX, então `tools/build-characters.mjs` converte para GLB com o FBXLoader do próprio three — sem Blender. |
 | Conversão de áudio para .ogg via ffmpeg | cópia direta | Todo o áudio Kenney **já é .ogg**; converter seria reencodificar com perda, sem ganho. |

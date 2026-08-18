@@ -5,10 +5,11 @@
  * `category` drives the merged GLB the models are packed into.
  */
 export const SELECTED_3D = {
-  'Mini Characters': {
+  'Animated Characters Bundle': {
     category: 'characters',
-    why: 'Único pack de personagem já em GLB com rig e 32 animações nomeadas (idle/walk/sprint/crouch/holding-both-shoot/die/drive). Nós nomeados head/torso/arm-*/leg-* servem de base para a vida por zonas.',
+    why: 'Único pack Kenney com rig humanoide de verdade (46 ossos de deformação: coluna, ombros, antebraços, mãos e dedos dos pés) e com crouchIdle/crouchWalk/shoot como clips separados — é o que permite agachar com as pernas mantendo os braços na arma. Só vem em FBX; tools/build-characters.mjs converte para GLB.',
     include: /^character-/,
+    rig: 'character-medium',
   },
   'Weapon Pack': {
     category: 'weapons',
@@ -104,13 +105,15 @@ export const SELECTED_OTHER = {
 
 /** Packs worth an explicit rejection note rather than the generic one. */
 export const REJECTION_NOTES = {
-  'Animated Characters Bundle':
-    'Só FBX/blend; o rig e as animações que ele traz já existem, em GLB, no Mini Characters.',
-  'Animated Characters Protagonists': 'Só FBX e apenas 3 animações; redundante com Mini Characters.',
-  'Animated Characters Retro': 'Só FBX e apenas 3 animações; redundante com Mini Characters.',
-  'Animated Characters Survivors': 'Só FBX e apenas 3 animações; redundante com Mini Characters.',
+  'Animated Characters Protagonists':
+    'Só idle/jump/run; o Animated Characters Bundle usa o mesmo rig e traz 16 clips.',
+  'Animated Characters Retro': 'Só idle/jump/run; redundante com o Animated Characters Bundle.',
+  'Animated Characters Survivors':
+    'Só idle/jump/run; as skins de sobrevivente já vêm no Animated Characters Bundle.',
   'Blocky Characters':
-    'Rigado e barato (72 tri), mas o estilo bloco destoa do Mini Characters escolhido. Candidato a LOD distante no futuro.',
+    'Rigado e barato (72 tri), mas o estilo bloco destoa do rig escolhido. Candidato a LOD distante no futuro.',
+  'Mini Characters':
+    'Rig de 7 nós (torso/arm-*/leg-*) sem coluna nem cotovelo: o agachamento e a pose de arma disputam os mesmos ossos, então agachar abria os braços. Trocado pelo Animated Characters Bundle.',
   'Nature Kit (Classic)': 'Substituído pela versão nova do Nature Kit.',
   'Space Kit': 'Ficção científica fora do tom pós-apocalíptico terrestre.',
   'Modular Space Kit': 'Ficção científica fora do tom.',
