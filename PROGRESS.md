@@ -13,7 +13,8 @@ como stub visível, nunca como TODO silencioso.
 | 3.5 Arsenal (adiantado da fase 8) | ✅ concluída |
 | 4. Mundo | ✅ concluída |
 | 5. IA | ✅ concluída |
-| 6–9 | fora do escopo desta execução |
+| 6. Veículos | ✅ concluída |
+| 7–9 | pendentes |
 
 ---
 
@@ -489,3 +490,65 @@ POIs e os props, tratados pelas sondas. NavMesh continua sendo a resposta certa 
 
 Também ficou de fora desta fase: `ManVehicle` (depende da fase 6) e cura/reanimação
 entre companheiros.
+
+---
+
+## Fase 6 — Veículos ✅
+
+**Entregue**
+
+- `vehicles/vehicle.ts` — **suspensão por raycast** sobre um único corpo rígido do
+  Rapier. Não há junta nem corpo de roda: cada canto lança um raio para baixo e aplica
+  mola-amortecedor mais atrito de pneu no ponto de contato. É a abordagem padrão de
+  arcade-sim e é o que mantém o carro estável a 60 Hz — rodas por restrição de verdade
+  só param de tremer com uma taxa de solver bem mais alta.
+- **Pneu com dois eixos**: atrito lateral (o que impede o carro de deslizar de lado; sem
+  ele o veículo vira aerodeslizador) e longitudinal (tração e frenagem), ambos limitados
+  pela carga daquele canto.
+- **Motor** com curva de torque, câmbio automático por fração da faixa de rotação,
+  tempo de troca e arrasto aerodinâmico limitando a velocidade final.
+- **Dano localizado**: pneus por proximidade do impacto (furam e perdem aderência),
+  motor na dianteira (perde potência e para em 0%) e tanque na traseira — perfurado,
+  vaza, pega fogo e explode, ejetando quem estiver dentro.
+- **Combustível** consumido por aceleração e marcha lenta, com vazamento quando o tanque
+  é perfurado, e reabastecimento por jerrican.
+- **Multi-assento** com motorista, passageiro e artilheiro; entrada e saída no `E`, com
+  o ocupante colado ao assento e depositado no chão real ao sair.
+- Câmeras de terceira e primeira pessoa (`V`), recuperação de capotamento (`Z`).
+- 3 tipos: Hatch Civil, Picape Batedora e Buggy Off-Road, com massa, marchas, suspensão
+  e aderência próprias em `config/vehicles.json`.
+
+**Aceite verificado**
+
+| | |
+|---|---|
+| Spawn | 8 veículos distribuídos nos 3 POIs, todos assentados na altura correta |
+| Entrar/dirigir | `E` entra, WASD dirige, câmbio sobe de 1ª para 2ª sozinho |
+| Dano localizado | pneu furado, motor a 0% e tanque a 31% em combate real |
+| Ciclo de destruição | tanque perfurado → incêndio → explosão → ocupante ejetado |
+| Freio de estacionamento | deriva de 0,73 m em 1,5 s parado numa encosta |
+
+**Defeitos encontrados e corrigidos durante a fase**
+
+- **Veículos caíam pelo mundo.** Os 5 nascidos em POIs distantes despencavam para
+  −700 m, porque o terreno daqueles chunks ainda não havia sido transmitido e não havia
+  colisor embaixo. Ganharam um estado **dormente**: enquanto não há chão sob eles, ficam
+  presos na posição de spawn e não simulam.
+- **Carros estacionados rolavam ladeira abaixo** e sumiam antes de alguém querer usá-los.
+  Um veículo desocupado agora mantém o freio de mão puxado.
+- A força do motor estava com um fator mágico de `0.02`, o que dava 0,2 m/s² de
+  aceleração — um carro de 1150 kg levava um minuto para andar. Virou
+  `engineForceScale` em config, calibrado para a faixa de um carro real.
+
+**Nota de método**
+
+A calibração fina da aceleração ficou prejudicada porque o único ponto com terreno
+carregado no teste era a vila, onde o esquadrão da fase 5 destrói o motor do carro em
+poucos segundos — o que, por si só, é a prova de que o dano localizado e a propagação
+tanque → incêndio → explosão funcionam. O valor final foi derivado pela aritmética da
+curva de torque e permanece um número de config, ajustável sem tocar em código.
+
+**Fora do escopo desta fase**
+
+Disparo de dentro do veículo pelas janelas, IA dirigindo (o nó `ManVehicle` da árvore
+existe mas não foi ligado), helicóptero e espelho/minimapa.

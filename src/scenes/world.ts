@@ -14,6 +14,8 @@ import { ExplosionSystem } from '../combat/explosions';
 import { ImpactEffects, MuzzleFlash } from '../combat/impacts';
 import { LOADOUT } from '../combat/arsenal';
 import { StatusEffects } from '../combat/statusEffects';
+import { Vehicle } from '../vehicles/vehicle';
+import vehicleConfig from '../../config/vehicles.json';
 import { Terrain } from '../world/terrain';
 import { WorldLayout } from '../world/layout';
 import { TerrainStreamer } from '../world/streamer';
@@ -60,6 +62,10 @@ export class WorldScene implements Scene {
   private readonly npcs: Npc[] = [];
   private gizmosOn = false;
   private effects2!: StatusEffects;
+  private readonly vehicles: Vehicle[] = [];
+  private ridingVehicle: Vehicle | null = null;
+  private ridingSeat = -1;
+  private firstPersonDrive = false;
   private readonly lastLook = { x: 0, y: 0 };
   private hudVisible = true;
   private lastHit = 'nenhum';
@@ -89,7 +95,12 @@ export class WorldScene implements Scene {
     this.muzzle = new MuzzleFlash(ctx.render.scene);
     this.explosions = new ExplosionSystem(ctx.physics, ctx.render.scene);
     this.effects2 = new StatusEffects(ctx.render.scene);
-    this.ballistics.onImpact = this.effects.handleImpact;
+    this.ballistics.onImpact = (e) => {
+      this.effects.handleImpact(e);
+      // Rounds that strike a vehicle feed its localised damage model.
+      const owner = e.owner as { vehicle?: Vehicle } | null;
+      if (owner?.vehicle && e.damage) owner.vehicle.applyHit(e.point, e.damage);
+    };
     this.ballistics.onExplosion = this.explosions.handle;
     this.ballistics.onDamage = (e) => {
       this.lastHit = `${e.zone} · ${e.amount.toFixed(0)} · ${e.distance.toFixed(0)} m`;
@@ -141,6 +152,7 @@ export class WorldScene implements Scene {
     await this.pois.buildAll();
     await this.spawnPatrol();
 
+    await this.spawnVehicles();
     this.navigator = new Navigator(ctx.physics, this.terrain);
     this.coverFinder = new CoverFinder(ctx.physics, this.terrain);
     this.gizmos = new AiGizmos(ctx.render.scene);
@@ -294,6 +306,96 @@ export class WorldScene implements Scene {
     }
   }
 
+  /** Vehicles parked at each POI, per config/vehicles.json. */
+  private async spawnVehicles(): Promise<void> {
+    const spawns = vehicleConfig.spawns as unknown as Record<string, Record<string, number>>;
+    for (const poi of this.layout.pois) {
+      const plan = spawns[poi.id];
+      if (!plan) continue;
+      let slot = 0;
+      for (const [typeId, count] of Object.entries(plan)) {
+        for (let i = 0; i < count; i++) {
+          const angle = (slot / 6) * Math.PI * 2;
+          const radius = poi.radius * 0.68;
+          const x = poi.x + Math.cos(angle) * radius;
+          const z = poi.z + Math.sin(angle) * radius;
+          this.vehicles.push(
+            await Vehicle.spawn(
+              this.ctx.physics,
+              this.ctx.render.scene,
+              typeId,
+              new THREE.Vector3(x, poi.groundHeight + 0.4, z),
+              -angle,
+            ),
+          );
+          slot++;
+        }
+      }
+    }
+  }
+
+  /** Nearest vehicle the player could climb into, or null. */
+  private vehicleInReach(): Vehicle | null {
+    const p = this.player.position;
+    let best: Vehicle | null = null;
+    let bestDistance = 3.6;
+    for (const vehicle of this.vehicles) {
+      if (vehicle.destroyed) continue;
+      const d = vehicle.position.distanceTo(p);
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = vehicle;
+      }
+    }
+    return best;
+  }
+
+  private enterVehicle(vehicle: Vehicle): void {
+    const seat = vehicle.enter(this.player);
+    if (seat < 0) return;
+    this.ridingVehicle = vehicle;
+    this.ridingSeat = seat;
+  }
+
+  private exitVehicle(): void {
+    if (!this.ridingVehicle) return;
+    const drop = this.ridingVehicle.exitWorldPosition();
+    this.ridingVehicle.exit(this.player);
+    // Put the player down beside the car, on the actual ground.
+    const ground = this.streamer.groundAt(drop.x, drop.z);
+    this.player.respawnKeepingHealth(new THREE.Vector3(drop.x, (ground ?? drop.y) + 0.2, drop.z));
+    this.ridingVehicle = null;
+    this.ridingSeat = -1;
+  }
+
+  /** Drives the vehicle and keeps the player glued to their seat. */
+  private updateDriving(dt: number): void {
+    const vehicle = this.ridingVehicle;
+    if (!vehicle) return;
+
+    const isDriver = vehicle.def.seats[this.ridingSeat]?.role === 'driver';
+    vehicle.setInput(
+      isDriver && !vehicle.destroyed
+        ? {
+            throttle: Number(input.isDown('KeyW')),
+            brake: Number(input.isDown('KeyS')),
+            steer: Number(input.isDown('KeyA')) - Number(input.isDown('KeyD')),
+            handbrake: input.isDown('Space'),
+          }
+        : { throttle: 0, brake: 0, steer: 0, handbrake: false },
+    );
+
+    if (isDriver && input.pressed('KeyZ') && vehicle.isUpsideDown) vehicle.recover();
+    if (input.pressed('KeyV')) this.firstPersonDrive = !this.firstPersonDrive;
+
+    // The player rides the seat; their own controller is parked meanwhile.
+    const seatPos = vehicle.seatWorldPosition(this.ridingSeat);
+    this.player.controller.setPosition(new THREE.Vector3(seatPos.x, seatPos.y - 1.0, seatPos.z));
+
+    if (vehicle.destroyed) this.exitVehicle();
+    void dt;
+  }
+
   private registerDebug(): void {
     debugOverlay.registerSection('mundo', () => {
       const p = this.player.position;
@@ -305,6 +407,11 @@ export class WorldScene implements Scene {
         this.pois.stats,
       ].join('\n');
     });
+    debugOverlay.registerSection('veiculo', () =>
+      this.ridingVehicle
+        ? this.ridingVehicle.debugText
+        : `${this.vehicles.length} veiculos · ${this.vehicleInReach() ? 'E para entrar' : 'nenhum por perto'}`,
+    );
     debugOverlay.registerSection(
       'ciclo',
       () => `${this.cycle.debugText}\n${this.effects2.debugText}`,
@@ -346,8 +453,29 @@ export class WorldScene implements Scene {
 
   fixed(dt: number): void {
     const intent = readPlayerInput();
+    if (this.ridingVehicle) {
+      // While riding, WASD drives the car instead of the legs.
+      intent.forward = 0;
+      intent.strafe = 0;
+      intent.jump = false;
+    }
     this.player.queueIntents(intent);
     this.player.fixed(dt, intent);
+
+    if (input.pressed('KeyE')) {
+      if (this.ridingVehicle) this.exitVehicle();
+      else {
+        const near = this.vehicleInReach();
+        if (near) this.enterVehicle(near);
+      }
+    }
+    this.updateDriving(dt);
+    for (const vehicle of this.vehicles) {
+      // A vehicle only simulates once there is ground beneath it.
+      const p = vehicle.position;
+      vehicle.dormant = this.streamer.groundAt(p.x, p.z) === null;
+      vehicle.fixed(dt);
+    }
 
     this.handleWeaponSwitching();
     if (input.pressed('KeyT')) this.cycle.timeScale = this.cycle.timeScale >= 60 ? 1 : 60;
@@ -472,11 +600,32 @@ export class WorldScene implements Scene {
     );
     this.pointerHint.classList.toggle('hidden', input.locked);
 
+    for (const vehicle of this.vehicles) vehicle.frame();
+    this.applyVehicleCamera();
     this.gizmos.update(this.npcs, this.ctx.render.camera);
     this.hud.setBlindness(this.effects2.blindnessOf(this.player));
 
     const p = this.player.position;
     this.ctx.render.followShadowTarget(p.x, p.y, p.z);
+  }
+
+  /** Chase or cockpit camera while riding; on foot this does nothing. */
+  private applyVehicleCamera(): void {
+    const vehicle = this.ridingVehicle;
+    if (!vehicle) return;
+    const camera = this.ctx.render.camera;
+    const cfg = vehicleConfig.defaults.camera;
+    const offset = new THREE.Vector3().fromArray(
+      this.firstPersonDrive ? cfg.firstPersonOffset : cfg.thirdPersonOffset,
+    );
+    const q = vehicle.root.quaternion;
+    const target = offset.clone().applyQuaternion(q).add(vehicle.root.position);
+    camera.position.copy(target);
+    // Look where the car is going, but let the mouse still turn the head.
+    const look = new THREE.Vector3(0, 0, -12).applyQuaternion(q).add(vehicle.root.position);
+    camera.lookAt(look);
+    camera.rotateY(this.player.yaw - vehicle.yaw);
+    camera.rotateX(this.player.pitch * 0.5);
   }
 
   dispose(): void {
@@ -496,7 +645,9 @@ export class WorldScene implements Scene {
     this.npcs.length = 0;
     this.gizmos.dispose();
     this.effects2.dispose();
-    for (const name of ['mundo', 'ciclo', 'player', 'arma', 'ia']) {
+    for (const vehicle of this.vehicles) vehicle.dispose();
+    this.vehicles.length = 0;
+    for (const name of ['mundo', 'ciclo', 'player', 'arma', 'ia', 'veiculo']) {
       debugOverlay.removeSection(name);
     }
   }

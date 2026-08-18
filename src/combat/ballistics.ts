@@ -41,6 +41,10 @@ export interface ImpactEvent {
   point: THREE.Vector3;
   normal: THREE.Vector3;
   material: string;
+  /** Collider owner, so callers can route damage to vehicles and props. */
+  owner?: unknown;
+  /** Damage the round carried at the moment of impact. */
+  damage?: number;
   /** True when the round went through rather than stopping. */
   penetrated: boolean;
   ricocheted: boolean;
@@ -291,7 +295,15 @@ export class BallisticsSystem {
       // Grenades bounce and keep their fuse; they never stop on contact.
       const bounced = dir.clone().reflect(normal).normalize();
       p.vel.copy(bounced).multiplyScalar(p.vel.length() * 0.42);
-      this.onImpact?.({ point, normal, material: materialName, penetrated: false, ricocheted: true });
+      this.onImpact?.({
+        point,
+        normal,
+        material: materialName,
+        penetrated: false,
+        ricocheted: true,
+        owner,
+        damage,
+      });
       return {
         stop: false,
         advance: 0.03,
@@ -339,7 +351,15 @@ export class BallisticsSystem {
         new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(),
         (Math.random() - 0.5) * spread,
       );
-      this.onImpact?.({ point, normal, material: materialName, penetrated: false, ricocheted: true });
+      this.onImpact?.({
+        point,
+        normal,
+        material: materialName,
+        penetrated: false,
+        ricocheted: true,
+        owner,
+        damage,
+      });
       return {
         stop: false,
         advance: 0.02,
@@ -351,13 +371,29 @@ export class BallisticsSystem {
     const thickness = this.thicknessThrough(hit, point, dir);
     const cost = thickness * material.hardness;
     if (cost > p.penetration) {
-      this.onImpact?.({ point, normal, material: materialName, penetrated: false, ricocheted: false });
+      this.onImpact?.({
+        point,
+        normal,
+        material: materialName,
+        penetrated: false,
+        ricocheted: false,
+        owner,
+        damage,
+      });
       return { stop: true, advance: 0, continueFrom: point };
     }
 
     p.penetration -= cost;
     p.damage *= material.exitDamageFactor;
-    this.onImpact?.({ point, normal, material: materialName, penetrated: true, ricocheted: false });
+    this.onImpact?.({
+      point,
+      normal,
+      material: materialName,
+      penetrated: true,
+      ricocheted: false,
+      owner,
+      damage,
+    });
     const exit = point.clone().addScaledVector(dir, thickness + 0.01);
     return { stop: false, advance: thickness + 0.01, continueFrom: exit };
   }

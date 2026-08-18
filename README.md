@@ -64,6 +64,9 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 | `Q` | Voltar à arma anterior |
 | `Shift`+`1`–`6` | Aplicar dano de teste na zona (cabeça, torso, braços, pernas) |
 | `K` | Renascer e restaurar os alvos |
+| `E` | Entrar/sair de veículo |
+| `V` | Alterna câmera de 1ª e 3ª pessoa no veículo |
+| `Z` | Desvirar veículo capotado |
 | `Espaço` | Pular / subir (freecam) |
 | `Ctrl` | Descer (freecam) |
 | Roda do mouse | Velocidade da freecam |

@@ -290,6 +290,15 @@ export class Player implements Damageable {
     }
   }
 
+  /** Moves the player without touching health — used when leaving a vehicle. */
+  respawnKeepingHealth(at: THREE.Vector3): void {
+    this.velocity.set(0, 0, 0);
+    this.verticalVelocity = 0;
+    this.controller.setPosition(at);
+    this.prevFeet.copy(at);
+    this.currFeet.copy(at);
+  }
+
   respawn(at: THREE.Vector3): void {
     this.health.reset();
     this.stamina = stamCfg.max;

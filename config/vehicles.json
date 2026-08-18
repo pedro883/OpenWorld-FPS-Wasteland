@@ -1,0 +1,124 @@
+{
+  "_comment": "Veículos com suspensão por raycast. Massa em kg, forças em N, distâncias em metros, tempos em segundos. A suspensão usa mola-amortecedor: força = k*(compressão) - c*(velocidade de compressão).",
+
+  "defaults": {
+    "suspension": {
+      "restLengthMeters": 0.45,
+      "travelMeters": 0.3,
+      "stiffness": 42000,
+      "damping": 3400,
+      "wheelRadiusMeters": 0.34
+    },
+    "tyre": {
+      "_comment": "gripLateral segura a derrapagem; reduzi-lo faz o carro deslizar. gripLongitudinal transfere torque ao chão.",
+      "gripLateral": 5.2,
+      "gripLongitudinal": 3.4,
+      "handbrakeGripMultiplier": 0.22,
+      "flatTyreGripMultiplier": 0.35,
+      "rollingResistance": 0.014
+    },
+    "engine": {
+      "_comment": "Curva de torque por fração da faixa de rotação, de marcha lenta ao corte.",
+      "torqueCurve": [
+        [0.0, 0.45],
+        [0.25, 0.82],
+        [0.5, 1.0],
+        [0.75, 0.92],
+        [1.0, 0.62]
+      ],
+      "idleRpm": 800,
+      "maxRpm": 6200,
+      "shiftUpFraction": 0.86,
+      "shiftDownFraction": 0.32,
+      "shiftSeconds": 0.28
+    },
+    "brakes": { "force": 9000, "handbrakeForce": 14000 },
+    "_comment_engineForceScale": "Converte torque x relação de marchas em newtons na roda. Calibrado para ~3 m/s² de aceleração em 1ª num carro de 1150 kg.",
+    "engineForceScale": 0.55,
+    "aero": { "dragCoefficient": 0.42, "downforce": 0.0 },
+    "damage": {
+      "engineFailFraction": 0.25,
+      "enginePowerAtFail": 0.3,
+      "tyreHealth": 45,
+      "fuelTankHealth": 90,
+      "fireSeconds": 6.5,
+      "explosionRadiusMeters": 9,
+      "explosionDamage": 190,
+      "collisionDamagePerMeterPerSecond": 1.1,
+      "runOverSpeedThreshold": 4.5,
+      "runOverDamagePerMeterPerSecond": 9
+    },
+    "fuel": {
+      "capacityLitres": 55,
+      "litresPerSecondAtFullThrottle": 0.09,
+      "idleLitresPerSecond": 0.008,
+      "jerrycanLitres": 20
+    },
+    "camera": {
+      "thirdPersonOffset": [0, 2.6, 7.2],
+      "firstPersonOffset": [0.36, 1.25, -0.25]
+    }
+  },
+
+  "types": {
+    "hatch": {
+      "name": "Hatch Civil",
+      "model": "car-kit/hatchback-sports",
+      "wheelModel": "car-kit/wheel-default",
+      "massKg": 1150,
+      "enginePowerNm": 1900,
+      "gearRatios": [3.4, 2.1, 1.45, 1.05, 0.82],
+      "finalDrive": 3.9,
+      "topSpeedKph": 155,
+      "seats": [
+        { "role": "driver", "offset": [-0.38, 0.55, 0.15] },
+        { "role": "passenger", "offset": [0.38, 0.55, 0.15] }
+      ],
+      "wheelbase": 2.35,
+      "trackWidth": 1.55,
+      "hullHalfExtents": [0.85, 0.55, 1.85]
+    },
+    "pickup": {
+      "name": "Picape Batedora",
+      "model": "car-kit/truck",
+      "wheelModel": "car-kit/wheel-truck",
+      "massKg": 1850,
+      "enginePowerNm": 2900,
+      "gearRatios": [3.9, 2.3, 1.5, 1.08, 0.85],
+      "finalDrive": 4.1,
+      "topSpeedKph": 135,
+      "seats": [
+        { "role": "driver", "offset": [-0.42, 0.72, 0.35] },
+        { "role": "passenger", "offset": [0.42, 0.72, 0.35] },
+        { "role": "gunner", "offset": [0, 1.05, -1.15] }
+      ],
+      "wheelbase": 2.85,
+      "trackWidth": 1.7,
+      "hullHalfExtents": [0.95, 0.7, 2.3],
+      "suspension": { "restLengthMeters": 0.52, "stiffness": 46000 }
+    },
+    "buggy": {
+      "name": "Buggy Off-Road",
+      "model": "car-kit/race-future",
+      "wheelModel": "car-kit/wheel-racing",
+      "massKg": 780,
+      "enginePowerNm": 1650,
+      "gearRatios": [3.1, 1.9, 1.35, 1.0],
+      "finalDrive": 4.4,
+      "topSpeedKph": 145,
+      "seats": [{ "role": "driver", "offset": [0, 0.6, 0.1] }],
+      "wheelbase": 2.1,
+      "trackWidth": 1.6,
+      "hullHalfExtents": [0.85, 0.45, 1.6],
+      "suspension": { "travelMeters": 0.42, "stiffness": 30000, "damping": 2600 },
+      "tyre": { "gripLateral": 4.2, "gripLongitudinal": 4.0 }
+    }
+  },
+
+  "spawns": {
+    "_comment": "Quantos veículos de cada tipo nascem em cada POI.",
+    "vila": { "hatch": 2, "pickup": 1 },
+    "base": { "pickup": 2, "buggy": 1 },
+    "usina": { "pickup": 1, "hatch": 1 }
+  }
+}
