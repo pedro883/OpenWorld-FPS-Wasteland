@@ -53,6 +53,11 @@ const DEG = Math.PI / 180;
  * sprinting across open ground at noon is spotted almost at once. The same
  * meter drives every awareness state, so there is one number to debug.
  */
+/** Anything that can attenuate a sight line, such as a smoke cloud. */
+export interface VisionMedium {
+  visionThrough(from: THREE.Vector3, to: THREE.Vector3): number;
+}
+
 export class Perception {
   private meter = 0;
   private state: AwarenessState = 'unaware';
@@ -72,6 +77,8 @@ export class Perception {
     private readonly physics: PhysicsWorld,
     /** Multiplier from the agent's skill level. */
     public skillMultiplier = 1,
+    /** Smoke and similar; queried on every sight line. */
+    private readonly medium: VisionMedium | null = null,
   ) {}
 
   get awareness(): AwarenessState {
@@ -194,6 +201,11 @@ export class Perception {
 
     if (!this.physics.hasLineOfSight(eye, target.eyePosition, SIGHT_BLOCKERS)) return 0;
 
+    // Smoke does not block the ray, it thins what gets through: a thick cloud
+    // drops detection to a crawl without making the target literally invisible.
+    const through = this.medium ? this.medium.visionThrough(eye, target.eyePosition) : 1;
+    if (through <= 0.05) return 0;
+
     const m = cfg.modifiers;
     let factor = 1;
 
@@ -221,6 +233,7 @@ export class Perception {
     }
 
     factor *= Math.max(m.minVisibilityFactor, visibility);
+    factor *= through;
     factor *= this.skillMultiplier;
 
     return cfg.baseGainPerSecond * factor;

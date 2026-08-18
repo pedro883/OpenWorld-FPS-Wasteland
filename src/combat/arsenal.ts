@@ -74,6 +74,12 @@ export interface WeaponDef {
   viewmodel: Record<string, unknown> | null;
   /** Hotbar icon id, resolved from the model id. */
   icon: string;
+  /** Attachment ids fitted to this instance. */
+  attachments?: string[];
+  /** Extra aim instability from optics, folded in by the viewmodel. */
+  attachmentSwayMultiplier?: number;
+  /** How much faster or slower the weapon comes up when aiming. */
+  attachmentAdsSpeed?: number;
 }
 
 export interface AmmoTypeDef {

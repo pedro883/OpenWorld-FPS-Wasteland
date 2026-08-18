@@ -27,6 +27,14 @@ export interface ShotSpec {
   fuseSeconds?: number;
   /** Model id to render in flight (rockets and grenades are visible). */
   model?: string | null;
+  /** Non-lethal payload: smoke, flash and burn come from the weapon def. */
+  special?: SpecialPayload | null;
+}
+
+export interface SpecialPayload {
+  smoke?: { radiusMeters: number; seconds: number; blocksVisionFactor: number } | null;
+  flash?: { radiusMeters: number; blindSeconds: number; deafSeconds: number } | null;
+  burn?: { damagePerSecond: number; seconds: number } | null;
 }
 
 export interface ImpactEvent {
@@ -44,6 +52,12 @@ export interface ExplosionEvent {
   shooter: unknown;
 }
 
+export interface SpecialEvent {
+  point: THREE.Vector3;
+  payload: SpecialPayload;
+  shooter: unknown;
+}
+
 export interface DamageEvent {
   entity: unknown;
   zone: string;
@@ -52,6 +66,8 @@ export interface DamageEvent {
   point: THREE.Vector3;
   direction: THREE.Vector3;
   shooter: unknown;
+  /** Carried so a flamethrower hit can set the target alight. */
+  special: SpecialPayload | null;
 }
 
 interface Projectile {
@@ -72,6 +88,7 @@ interface Projectile {
   kind: ProjectileKind;
   fuse: number;
   model: string | null;
+  special: SpecialPayload | null;
 }
 
 /** Linear interpolation over the weapon's [distance, multiplier] table. */
@@ -108,6 +125,7 @@ export class BallisticsSystem {
   /** Called with the segment of every round, for AI suppression. */
   onPass: ((from: THREE.Vector3, to: THREE.Vector3, shooter: unknown) => void) | null = null;
   onExplosion: ((e: ExplosionEvent) => void) | null = null;
+  onSpecial: ((e: SpecialEvent) => void) | null = null;
 
   constructor(
     private readonly physics: PhysicsWorld,
@@ -133,6 +151,7 @@ export class BallisticsSystem {
         kind: 'bullet' as ProjectileKind,
         fuse: 0,
         model: null,
+        special: null,
       }),
       (p) => {
         p.active = false;
@@ -140,6 +159,7 @@ export class BallisticsSystem {
         p.ignore = undefined;
         p.explosion = null;
         p.model = null;
+        p.special = null;
         p.falloff = [];
       },
       cfg.maxProjectiles,
@@ -171,6 +191,7 @@ export class BallisticsSystem {
     p.kind = spec.kind ?? 'bullet';
     p.fuse = spec.fuseSeconds ?? 0;
     p.model = spec.model ?? null;
+    p.special = spec.special ?? null;
     return true;
   }
 
@@ -261,7 +282,7 @@ export class BallisticsSystem {
     const material = materialDef(materialName);
     const damage = p.damage * falloffAt(p.falloff, p.travelled);
 
-    if (p.kind === 'rocket' && p.explosion) {
+    if (p.kind === 'rocket' && (p.explosion || p.special)) {
       this.detonate(p, point);
       return { stop: true, advance: 0, continueFrom: point };
     }
@@ -290,6 +311,7 @@ export class BallisticsSystem {
         point,
         direction: dir.clone(),
         shooter: p.shooter,
+        special: p.special,
       });
       this.onImpact?.({ point, normal, material: 'flesh', penetrated: false, ricocheted: false });
       // Rounds stop in the body unless they had a lot of budget left.
@@ -354,8 +376,13 @@ export class BallisticsSystem {
 
   /** Emits the explosion event; the explosion system applies area damage. */
   private detonate(p: Projectile, at: THREE.Vector3): void {
-    if (!p.explosion) return;
-    this.onExplosion?.({ point: at.clone(), def: p.explosion, shooter: p.shooter });
+    if (p.explosion) {
+      this.onExplosion?.({ point: at.clone(), def: p.explosion, shooter: p.shooter });
+    }
+    // Smoke and flash detonate through the same path as high explosive.
+    if (p.special && (p.special.smoke || p.special.flash)) {
+      this.onSpecial?.({ point: at.clone(), payload: p.special, shooter: p.shooter });
+    }
   }
 
   /**
@@ -386,6 +413,7 @@ export class BallisticsSystem {
         point,
         direction: direction.clone(),
         shooter,
+        special: null,
       });
     }
     this.onImpact?.({

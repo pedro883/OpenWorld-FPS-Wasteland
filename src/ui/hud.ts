@@ -35,6 +35,7 @@ export class Hud {
   private readonly reloadBar: HTMLDivElement;
   private readonly hotbar: HTMLDivElement;
   private readonly hotbarSlots: HTMLDivElement[] = [];
+  private readonly blindEl: HTMLDivElement;
   private hotbarSignature = '';
 
   constructor() {
@@ -112,6 +113,10 @@ export class Hud {
     this.hotbar = document.createElement('div');
     this.hotbar.id = 'hud-hotbar';
     this.root.appendChild(this.hotbar);
+
+    this.blindEl = document.createElement('div');
+    this.blindEl.id = 'hud-blind';
+    this.root.appendChild(this.blindEl);
 
     this.hintEl = document.createElement('div');
     this.hintEl.id = 'hud-hint';
@@ -218,6 +223,11 @@ export class Hud {
     // Reflow so the animation restarts even on rapid consecutive hits.
     void this.crosshair.offsetWidth;
     this.crosshair.classList.add(headshot ? 'headshot' : 'hit');
+  }
+
+  /** White-out from a flashbang, 0..1. */
+  setBlindness(value: number): void {
+    this.blindEl.style.opacity = `${Math.min(1, value)}`;
   }
 
   setHint(text: string): void {

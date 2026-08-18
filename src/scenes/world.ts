@@ -13,6 +13,7 @@ import { BallisticsSystem } from '../combat/ballistics';
 import { ExplosionSystem } from '../combat/explosions';
 import { ImpactEffects, MuzzleFlash } from '../combat/impacts';
 import { LOADOUT } from '../combat/arsenal';
+import { StatusEffects } from '../combat/statusEffects';
 import { Terrain } from '../world/terrain';
 import { WorldLayout } from '../world/layout';
 import { TerrainStreamer } from '../world/streamer';
@@ -58,6 +59,7 @@ export class WorldScene implements Scene {
   private readonly squads: Squad[] = [];
   private readonly npcs: Npc[] = [];
   private gizmosOn = false;
+  private effects2!: StatusEffects;
   private readonly lastLook = { x: 0, y: 0 };
   private hudVisible = true;
   private lastHit = 'nenhum';
@@ -86,12 +88,26 @@ export class WorldScene implements Scene {
     this.effects = new ImpactEffects(ctx.render.scene);
     this.muzzle = new MuzzleFlash(ctx.render.scene);
     this.explosions = new ExplosionSystem(ctx.physics, ctx.render.scene);
+    this.effects2 = new StatusEffects(ctx.render.scene);
     this.ballistics.onImpact = this.effects.handleImpact;
     this.ballistics.onExplosion = this.explosions.handle;
     this.ballistics.onDamage = (e) => {
       this.lastHit = `${e.zone} · ${e.amount.toFixed(0)} · ${e.distance.toFixed(0)} m`;
       this.hud.flashHit(e.zone === 'head');
+      // A flamethrower round sets the target alight for as long as configured.
+      const burn = e.special?.burn;
+      if (burn) {
+        const victim = e.entity as { health?: { alive: boolean } } | null;
+        if (victim?.health) {
+          this.effects2.applyBurn(
+            victim.health as never,
+            burn.damagePerSecond,
+            burn.seconds,
+          );
+        }
+      }
     };
+    this.ballistics.onSpecial = (e) => this.handleSpecial(e.point, e.payload);
     this.explosions.onDamage = (_entity, zone, amount) => {
       this.lastHit = `explosão · ${zone} · ${amount.toFixed(0)}`;
       this.hud.flashHit(false);
@@ -165,6 +181,7 @@ export class WorldScene implements Scene {
       ballistics: this.ballistics,
       navigator: this.navigator,
       cover: this.coverFinder,
+      medium: this.effects2,
     };
     const weapons = aiConfig.spawn.weaponsBySkill as Record<string, string[]>;
     const plans: Array<{ poiIndex: number; size: number; skill: SkillLevel }> = [
@@ -219,6 +236,64 @@ export class WorldScene implements Scene {
     }
   }
 
+  /**
+   * Smoke and flash detonations. Flash exposure is computed per target from
+   * distance, facing and line of sight, so turning away or ducking behind a
+   * wall genuinely saves your eyes.
+   */
+  private handleSpecial(
+    point: THREE.Vector3,
+    payload: { smoke?: unknown; flash?: unknown },
+  ): void {
+    const smoke = payload.smoke as
+      | { radiusMeters: number; seconds: number; blocksVisionFactor: number }
+      | null
+      | undefined;
+    if (smoke) {
+      this.effects2.spawnSmoke(
+        point,
+        smoke.radiusMeters,
+        smoke.seconds,
+        smoke.blocksVisionFactor,
+      );
+    }
+
+    const flash = payload.flash as
+      | { radiusMeters: number; blindSeconds: number; deafSeconds: number }
+      | null
+      | undefined;
+    if (!flash) return;
+
+    const eye = this.player.controller.eyePosition;
+    const playerEye = new THREE.Vector3(eye.x, eye.y, eye.z);
+    const playerForward = new THREE.Vector3();
+    this.ctx.render.camera.getWorldDirection(playerForward);
+    this.effects2.applyFlash(
+      this.player,
+      playerEye,
+      playerForward,
+      point,
+      flash.radiusMeters,
+      flash.blindSeconds,
+      flash.deafSeconds,
+      this.ctx.physics.hasLineOfSight(playerEye, point, 3),
+    );
+
+    for (const npc of this.npcs) {
+      if (!npc.isAlive) continue;
+      this.effects2.applyFlash(
+        npc,
+        npc.eyePosition,
+        npc.forward,
+        point,
+        flash.radiusMeters,
+        flash.blindSeconds,
+        flash.deafSeconds,
+        this.ctx.physics.hasLineOfSight(npc.eyePosition, point, 3),
+      );
+    }
+  }
+
   private registerDebug(): void {
     debugOverlay.registerSection('mundo', () => {
       const p = this.player.position;
@@ -230,7 +305,10 @@ export class WorldScene implements Scene {
         this.pois.stats,
       ].join('\n');
     });
-    debugOverlay.registerSection('ciclo', () => this.cycle.debugText);
+    debugOverlay.registerSection(
+      'ciclo',
+      () => `${this.cycle.debugText}\n${this.effects2.debugText}`,
+    );
     debugOverlay.registerSection('player', () => this.player.debugText);
     debugOverlay.registerSection(
       'arma',
@@ -306,6 +384,7 @@ export class WorldScene implements Scene {
 
     this.water.applyDrowning(dt, eye.y, this.player.health);
     this.cycle.update(dt);
+    this.effects2.update(dt);
     this.updateAi(dt, recoil !== null);
   }
 
@@ -339,6 +418,7 @@ export class WorldScene implements Scene {
         npc.update(dt, 0);
         continue;
       }
+      npc.blindness = this.effects2.blindnessOf(npc);
       npc.setContext(target, visibility, positions);
       npc.update(dt, npc.position.distanceTo(this.player.position));
     }
@@ -393,6 +473,7 @@ export class WorldScene implements Scene {
     this.pointerHint.classList.toggle('hidden', input.locked);
 
     this.gizmos.update(this.npcs, this.ctx.render.camera);
+    this.hud.setBlindness(this.effects2.blindnessOf(this.player));
 
     const p = this.player.position;
     this.ctx.render.followShadowTarget(p.x, p.y, p.z);
@@ -414,6 +495,7 @@ export class WorldScene implements Scene {
     for (const npc of this.npcs) npc.dispose();
     this.npcs.length = 0;
     this.gizmos.dispose();
+    this.effects2.dispose();
     for (const name of ['mundo', 'ciclo', 'player', 'arma', 'ia']) {
       debugOverlay.removeSection(name);
     }

@@ -8,7 +8,7 @@ import type { Damageable } from '../combat/types';
 import { AmmoPouch } from '../combat/arsenal';
 import { Weapon } from '../combat/weapon';
 import type { BallisticsSystem } from '../combat/ballistics';
-import { Perception, type PerceptionTarget } from '../ai/perception';
+import { Perception, type PerceptionTarget, type VisionMedium } from '../ai/perception';
 import { CoverFinder, type CoverPoint } from '../ai/cover';
 import { Navigator } from '../ai/navigation';
 import type { SquadMember, SquadOrder } from '../ai/squad';
@@ -61,6 +61,8 @@ export interface NpcDeps {
   ballistics: BallisticsSystem;
   navigator: Navigator;
   cover: CoverFinder;
+  /** Smoke field, consulted by perception. */
+  medium?: VisionMedium;
 }
 
 /**
@@ -107,6 +109,8 @@ export class Npc implements Damageable, SquadMember {
 
   /** 0..1; near-misses raise it, time lowers it. */
   suppression = 0;
+  /** 0..1 from a flashbang; wrecks accuracy while it lasts. */
+  blindness = 0;
   private thinkAccumulator = 0;
   private lastTrace: string[] = [];
   private target: PerceptionTarget | null = null;
@@ -124,7 +128,11 @@ export class Npc implements Damageable, SquadMember {
     deps.scene.add(this.root);
 
     this.skill = SKILLS[skillLevel];
-    this.perception = new Perception(deps.physics, this.skill.detectionMultiplier);
+    this.perception = new Perception(
+      deps.physics,
+      this.skill.detectionMultiplier,
+      deps.medium ?? null,
+    );
     this.hitboxes = new HitboxSet(deps.physics, this, { position: spawn });
     this.weapon = new Weapon(weaponId, deps.ballistics, this, this.pouch);
     this.tree = this.buildTree();
@@ -531,7 +539,9 @@ export class Npc implements Damageable, SquadMember {
       combatCfg.aimErrorAtMaxRangeDegrees *
       rangeFactor *
       this.skill.spreadMultiplier *
-      (1 + this.suppression * suppressionCfg.accuracyPenaltyAtFull);
+      (1 + this.suppression * suppressionCfg.accuracyPenaltyAtFull) *
+      // A flashed agent still shoots, just nowhere near you.
+      (1 + this.blindness * 6);
     this.applyAimError(aim, error);
 
     this.weapon.setTrigger(true);
@@ -607,6 +617,18 @@ export class Npc implements Damageable, SquadMember {
 
   get facing(): number {
     return this.yaw;
+  }
+
+  get eyePosition(): THREE.Vector3 {
+    return new THREE.Vector3(
+      this.position.x,
+      this.position.y + perceptionCfg.eyeHeightMeters,
+      this.position.z,
+    );
+  }
+
+  get forward(): THREE.Vector3 {
+    return new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
   }
 
   get debugText(): string {

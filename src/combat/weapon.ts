@@ -5,6 +5,7 @@ import type { BallisticsSystem } from './ballistics';
 import type { Stance } from '../physics/characterController';
 import type { RAPIER } from '../physics/world';
 import { AmmoPouch, weaponDef, type WeaponDef } from './arsenal';
+import { describe as describeAttachments, presetFor, withAttachments } from './attachments';
 
 export type { WeaponDef } from './arsenal';
 export { weaponDef, allWeaponIds } from './arsenal';
@@ -59,8 +60,11 @@ export class Weapon {
     private readonly ballistics: BallisticsSystem,
     private readonly owner: unknown,
     private readonly pouch: AmmoPouch,
+    attachments?: readonly string[],
   ) {
-    this.def = weaponDef(id);
+    // Attachments are folded into a copy of the definition, so two rifles with
+    // different optics really are different weapons in every number.
+    this.def = withAttachments(weaponDef(id), attachments ?? presetFor(id));
     this.ammo = Math.min(this.def.magazine, this.pouch.take(this.def, this.def.magazine));
   }
 
@@ -250,6 +254,10 @@ export class Weapon {
         kind: def.projectile,
         fuseSeconds: def.projectile === 'thrown' ? def.fuseSeconds : 0,
         model: def.projectile === 'thrown' || def.projectile === 'rocket' ? def.model : null,
+        special:
+          def.smoke || def.flash || def.burn
+            ? { smoke: def.smoke, flash: def.flash, burn: def.burn }
+            : null,
       });
       if (ok) launched++;
     }
@@ -319,6 +327,7 @@ export class Weapon {
   get debugText(): string {
     return [
       `${this.def.name}  [${this.def.class}]`,
+      `  ${describeAttachments(this.def.attachments ?? [])}`,
       `munição ${this.ammo}/${this.def.magazine}  reserva ${this.reserve}`,
       `modo ${this.fireMode}  bloom ${this.bloom.toFixed(2)}°  tiro #${this.shotIndex}`,
       this.isReloading ? `recarregando ${(this.reloadProgress * 100).toFixed(0)}%` : '',

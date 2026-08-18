@@ -36,6 +36,7 @@ export class Loadout {
     for (const id of ids) {
       const def = weaponDef(id);
       this.slots.push({ slot: def.slot, weapon: new Weapon(id, ballistics, owner, this.pouch) });
+
     }
   }
 

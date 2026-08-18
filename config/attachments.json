@@ -1,0 +1,127 @@
+{
+  "_comment": "Acessórios modulares (seção 4.3). Cada um tem efeito numérico real, não cosmético. Multiplicadores compõem por multiplicação; bônus somam. `mount` é onde a peça é encaixada no viewmodel, em metros relativos ao modelo da arma.",
+
+  "slots": ["optic", "muzzle", "magazine", "grip", "stock"],
+
+  "attachments": {
+    "optic_reddot": {
+      "name": "Mira Red-Dot",
+      "slot": "optic",
+      "model": "blaster-kit/scope-small",
+      "mount": [0, 0.135, 0.02],
+      "scale": 0.55,
+      "adsFovDegrees": 42,
+      "adsSpeedMultiplier": 1.12,
+      "spreadAdsMultiplier": 0.82,
+      "weightKg": 0.2,
+      "fitsClasses": ["pistol", "smg", "rifle", "shotgun", "lmg"]
+    },
+    "optic_scope4x": {
+      "name": "Luneta 4x",
+      "slot": "optic",
+      "model": "blaster-kit/scope-large-a",
+      "mount": [0, 0.145, 0.0],
+      "scale": 0.6,
+      "adsFovDegrees": 22,
+      "adsSpeedMultiplier": 0.82,
+      "spreadAdsMultiplier": 0.6,
+      "swayMultiplier": 1.25,
+      "weightKg": 0.45,
+      "fitsClasses": ["rifle", "marksman", "lmg"]
+    },
+    "optic_scope8x": {
+      "name": "Luneta 8x",
+      "slot": "optic",
+      "model": "blaster-kit/scope-large-b",
+      "mount": [0, 0.15, 0.0],
+      "scale": 0.62,
+      "adsFovDegrees": 12,
+      "adsSpeedMultiplier": 0.68,
+      "spreadAdsMultiplier": 0.45,
+      "swayMultiplier": 1.6,
+      "weightKg": 0.7,
+      "fitsClasses": ["marksman", "sniper"]
+    },
+    "muzzle_suppressor": {
+      "name": "Supressor",
+      "slot": "muzzle",
+      "model": "blaster-kit/silencer-small",
+      "mount": [0, 0.02, -0.34],
+      "scale": 0.7,
+      "_comment": "O ganho decisivo é acústico: o raio de ruído cai a 22%, o que muda quem vem olhar.",
+      "noiseRadiusMultiplier": 0.22,
+      "suppressed": true,
+      "muzzleVelocityMultiplier": 0.96,
+      "damageMultiplier": 0.94,
+      "recoilMultiplier": 0.88,
+      "weightKg": 0.4,
+      "fitsClasses": ["pistol", "smg", "rifle", "marksman", "sniper"]
+    },
+    "muzzle_compensator": {
+      "name": "Compensador",
+      "slot": "muzzle",
+      "model": "blaster-kit/silencer-larger",
+      "mount": [0, 0.02, -0.3],
+      "scale": 0.5,
+      "recoilMultiplier": 0.7,
+      "noiseRadiusMultiplier": 1.15,
+      "spreadMultiplier": 1.08,
+      "weightKg": 0.25,
+      "fitsClasses": ["smg", "rifle", "lmg"]
+    },
+    "mag_extended": {
+      "name": "Carregador Estendido",
+      "slot": "magazine",
+      "model": "blaster-kit/clip-large",
+      "mount": [0, -0.09, 0.02],
+      "scale": 0.6,
+      "magazineBonus": 12,
+      "reloadTimeMultiplier": 1.18,
+      "weightKg": 0.35,
+      "fitsClasses": ["pistol", "smg", "rifle", "lmg"]
+    },
+    "mag_quick": {
+      "name": "Carregador Rápido",
+      "slot": "magazine",
+      "model": "blaster-kit/clip-small",
+      "mount": [0, -0.07, 0.02],
+      "scale": 0.55,
+      "reloadTimeMultiplier": 0.74,
+      "weightKg": 0.1,
+      "fitsClasses": ["pistol", "smg", "rifle", "marksman", "lmg"]
+    },
+    "grip_vertical": {
+      "_comment": "Sem modelo no acervo Kenney; o efeito é numérico e o viewmodel não muda.",
+      "name": "Empunhadura Vertical",
+      "slot": "grip",
+      "model": null,
+      "recoilMultiplier": 0.82,
+      "spreadMovingMultiplier": 0.85,
+      "adsSpeedMultiplier": 0.94,
+      "weightKg": 0.2,
+      "fitsClasses": ["smg", "rifle", "lmg"]
+    },
+    "stock_heavy": {
+      "_comment": "Sem modelo no acervo Kenney; efeito puramente numérico.",
+      "name": "Coronha Pesada",
+      "slot": "stock",
+      "model": null,
+      "recoilMultiplier": 0.76,
+      "swayMultiplier": 0.8,
+      "adsSpeedMultiplier": 0.86,
+      "weightKg": 0.6,
+      "fitsClasses": ["rifle", "marksman", "sniper", "lmg"]
+    }
+  },
+
+  "presets": {
+    "_comment": "Configurações padrão por arma, usadas no loadout inicial e pela IA.",
+    "rifle_m4x": ["optic_reddot", "grip_vertical"],
+    "rifle_lince": ["optic_scope4x", "stock_heavy"],
+    "smg_vibora_s": ["muzzle_suppressor", "mag_extended"],
+    "marksman_corvo": ["optic_scope4x", "stock_heavy"],
+    "sniper_tr8": ["optic_scope8x", "stock_heavy"],
+    "pistol_px9s": ["muzzle_suppressor"],
+    "lmg_touro": ["optic_reddot", "grip_vertical"]
+  }
+}
