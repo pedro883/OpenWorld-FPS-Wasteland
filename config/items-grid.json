@@ -1,0 +1,63 @@
+{
+  "_comment": "Catálogo do inventário espacial. `width`/`height` são células do grid (fuzil 4x2, carregador 1x2, granada 1x1); a rotação vive na instância, não aqui. `tags` alimentam tanto o filtro das caixas quanto a checagem de slot de anexo. `equipSlots` é a restrição por slot, declarada pelo item: acrescentar um slot novo nunca obriga a auditar o catálogo inteiro.",
+
+  "items": {
+    "rifle_assalto": {
+      "name": "Fuzil de Assalto M4X", "width": 4, "height": 2, "weightKg": 3.4, "value": 1250,
+      "tags": ["weapon"], "equipSlots": ["primary"], "calibre": "5.56", "maxDurability": 100,
+      "model": "weapon-pack/blaster-a",
+      "attachmentSlots": [
+        { "type": "optic", "accepts": ["attachment"] },
+        { "type": "muzzle", "accepts": ["attachment"] },
+        { "type": "magazine", "accepts": ["magazine"] }
+      ]
+    },
+    "sniper": {
+      "name": "Sniper TR-8", "width": 5, "height": 2, "weightKg": 5.6, "value": 2600,
+      "tags": ["weapon"], "equipSlots": ["primary"], "calibre": "7.62",
+      "attachmentSlots": [{ "type": "optic", "accepts": ["attachment"] }]
+    },
+    "pistola": {
+      "name": "Pistola PX-9", "width": 2, "height": 1, "weightKg": 0.9, "value": 180,
+      "tags": ["pistol", "weapon"], "equipSlots": ["holster", "secondary"], "calibre": "9mm",
+      "attachmentSlots": [{ "type": "muzzle", "accepts": ["attachment"] }]
+    },
+
+    "carregador_556": { "name": "Carregador 5,56", "width": 1, "height": 2, "weightKg": 0.42, "value": 90, "tags": ["magazine"], "capacity": 30, "calibre": "5.56" },
+    "carregador_9mm": { "name": "Carregador 9 mm", "width": 1, "height": 1, "weightKg": 0.25, "value": 60, "tags": ["magazine"], "capacity": 15, "calibre": "9mm" },
+    "municao_556": { "name": "Munição 5,56", "width": 1, "height": 1, "weightKg": 0.012, "value": 2, "tags": ["ammo"], "calibre": "5.56" },
+    "municao_9mm": { "name": "Munição 9 mm", "width": 1, "height": 1, "weightKg": 0.008, "value": 1, "tags": ["ammo"], "calibre": "9mm" },
+
+    "luneta_4x": { "name": "Luneta 4x", "width": 2, "height": 1, "weightKg": 0.6, "value": 260, "tags": ["attachment"] },
+    "red_dot": { "name": "Mira Red-Dot", "width": 1, "height": 1, "weightKg": 0.3, "value": 140, "tags": ["attachment"] },
+    "supressor": { "name": "Supressor", "width": 2, "height": 1, "weightKg": 0.5, "value": 380, "tags": ["attachment"] },
+
+    "granada_frag": { "name": "Granada de fragmentação", "width": 1, "height": 1, "weightKg": 0.4, "value": 120, "tags": ["throwable"] },
+    "granada_fumaca": { "name": "Granada de fumaça", "width": 1, "height": 1, "weightKg": 0.35, "value": 70, "tags": ["throwable"] },
+
+    "capacete": { "name": "Capacete balístico", "width": 2, "height": 2, "weightKg": 1.4, "value": 500, "tags": ["helmet", "armour"], "equipSlots": ["helmet"], "maxDurability": 80 },
+    "colete": { "name": "Colete tático", "width": 3, "height": 3, "weightKg": 5.2, "value": 620, "tags": ["armour", "rig", "container"], "equipSlots": ["armour"], "maxDurability": 120, "container": { "width": 4, "height": 2, "accepts": ["magazine", "throwable", "medical"] } },
+    "headset": { "name": "Headset", "width": 2, "height": 1, "weightKg": 0.3, "value": 240, "tags": ["headset"], "equipSlots": ["headset"] },
+
+    "mochila_assalto": { "name": "Mochila de assalto", "width": 3, "height": 3, "weightKg": 2.4, "value": 300, "tags": ["backpack", "container"], "equipSlots": ["backpack"], "container": { "width": 6, "height": 6 } },
+    "mochila_leve": { "name": "Mochila leve", "width": 2, "height": 2, "weightKg": 1.2, "value": 120, "tags": ["backpack", "container"], "equipSlots": ["backpack"], "container": { "width": 4, "height": 4 } },
+
+    "bandagem": { "name": "Bandagem", "width": 1, "height": 1, "weightKg": 0.12, "value": 15, "tags": ["medical"] },
+    "kit_medico": { "name": "Kit médico", "width": 2, "height": 2, "weightKg": 1.1, "value": 70, "tags": ["medical"] },
+
+    "relogio": { "name": "Relógio de ouro", "width": 1, "height": 1, "weightKg": 0.1, "value": 250, "tags": ["valuable"] },
+    "documentos": { "name": "Documentos", "width": 1, "height": 1, "weightKg": 0.05, "value": 400, "tags": ["valuable"] }
+  },
+
+  "_comment_crates": "Caixas do mundo. `accepts` vazio aceita tudo.",
+  "crates": {
+    "municao": { "name": "Caixa de munição", "width": 8, "height": 6, "accepts": ["ammo", "magazine"] },
+    "armas": { "name": "Caixa de armas", "width": 12, "height": 6, "accepts": ["weapon", "pistol", "attachment"] },
+    "granadas": { "name": "Caixa de granadas", "width": 6, "height": 4, "accepts": ["throwable"] },
+    "generica": { "name": "Contêiner", "width": 10, "height": 8, "accepts": [] },
+    "stash": { "name": "Baú pessoal", "width": 15, "height": 20, "accepts": [] }
+  },
+
+  "_comment_search": "Segundos de busca por tipo de contêiner antes de revelar o conteúdo.",
+  "searchSeconds": { "corpse": 4, "crate": 2.5, "stash": 0, "player": 0 }
+}

@@ -947,7 +947,7 @@ convolução — a cauda hoje é um sample por ambiente, não um `ConvolverNode`
 
 ---
 
-## Inventário estilo Tarkov (pendente, combinado com o usuário)
+## Inventário estilo Tarkov — em andamento
 
 Substituir o inventário atual (`src/entities/inventory.ts`, hoje uma lista por
 peso) por um sistema espacial completo:
@@ -971,3 +971,46 @@ peso) por um sistema espacial completo:
 
 Isso é uma fase inteira por si só — troca o modelo de dados do inventário, a UI e
 a camada de persistência, e o servidor da fase 9 passa a ser o dono do estado.
+
+---
+
+## Inventário espacial — o que já está pronto
+
+**Entregue e testado (57 testes)**
+
+- **Matriz 2D** (`inventory/grid.ts`): colisão, rotação de 90° que recusa quando a
+  pegada virada não cabe, inserção automática que prefere não girar, filtro por
+  tag e peso somando aninhados. O grid guarda o **uuid** por célula em vez de um
+  booleano — custa o mesmo e responde a pergunta que a UI faz de verdade, "o que
+  está sob o cursor", sem varrer todos os itens a cada movimento de mouse.
+- **Modelo de dados** (`inventory/types.ts`) separando `ItemBase` (o que é um
+  fuzil) de `ItemInstance` (este fuzil), com DTOs de ida e volta para o MySQL.
+- **DDL** (`sql/inventory.sql`): quatro tabelas, índices por `owner_id` e
+  `container_id`, e um `CHECK` que impede na origem a linha em que um item está
+  ao mesmo tempo numa célula e num slot.
+- **Regras entre grids** (`inventory/inventorySystem.ts`): equipar com restrição
+  declarada pelo item, desequipar que só libera o slot depois de o item ter onde
+  ficar, contêineres aninhados com trava de recursão, busca em corpos por
+  temporizador, chão com consulta por proximidade, e anexos com um slot por peça.
+- **UI de grid** (`ui/gridInventoryPanel.ts`): arrastar entre contêineres, `R`
+  gira, `Del` ou soltar fora larga no chão, slots de equipamento, coluna "No
+  chão" e barra de progresso no lugar do conteúdo enquanto o corpo não foi
+  revistado. A célula de destino vem do **canto agarrado**, não do cursor —
+  arrastar um fuzil pelo coronha e vê-lo cair quatro células à direita é a
+  forma mais comum de esse tipo de UI parecer quebrada.
+- **Cena `?scene=inv`** com baú, bolsos, caixa de munição filtrada, um corpo para
+  revistar e algo no chão.
+
+**Falta**
+
+1. **Ligar ao mundo**: hoje a cena de teste é o único lugar onde o sistema roda.
+   O `WorldScene` ainda usa o inventário por peso da fase 7; a troca envolve
+   loot, loja, save e HUD.
+2. **Drop físico de verdade**: o item sai do grid e entra na lista do chão, mas
+   nenhum objeto 3D é instanciado nem cai com física.
+3. **Coleta por raycast** com tooltip flutuante e `E`/`F`.
+4. **Janela de inspeção 3D** com modelo rotacionável e menu de contexto
+   (usar, descarregar munição, inspecionar balas, girar, descartar).
+5. **Persistência MySQL**: o DDL e os DTOs existem, mas não há driver, pool nem
+   as escritas assíncronas — e isso depende do servidor da fase 9 virar dono do
+   estado do inventário.

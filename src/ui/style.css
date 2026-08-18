@@ -500,3 +500,76 @@ html, body {
 #death-panel .panel-frame { width: min(560px, 92vw); }
 #death-panel .panel-summary strong { color: #e06a5a; font-size: 26px; }
 #death-panel .panel-header h2 { color: #e06a5a; }
+
+/* ---- Inventário em grid ------------------------------------------------ */
+
+.inv-layout { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
+.inv-column { display: flex; flex-direction: column; gap: 18px; }
+.inv-block h3 { margin: 0 0 8px; }
+
+.inv-grid {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.03);
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
+}
+
+.inv-item {
+  position: absolute;
+  margin: 1px;
+  background: rgba(255, 176, 64, 0.18);
+  border: 1px solid rgba(255, 176, 64, 0.65);
+  border-radius: 2px;
+  font-size: 10.5px;
+  line-height: 1.15;
+  padding: 3px 4px;
+  color: #ffe1b0;
+  cursor: grab;
+  overflow: hidden;
+  user-select: none;
+}
+.inv-item:hover { background: rgba(255, 176, 64, 0.3); }
+.inv-count {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font-size: 10px;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+}
+
+.inv-ghost {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  background: rgba(255, 176, 64, 0.35);
+  border: 1px solid #ffb040;
+  border-radius: 2px;
+  font-size: 10.5px;
+  color: #fff;
+  padding: 3px 4px;
+  overflow: hidden;
+}
+
+.inv-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.inv-slot {
+  min-height: 46px;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 3px;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10.5px;
+}
+.inv-slot:hover { border-color: rgba(255, 176, 64, 0.7); }
+.inv-slot-name { color: rgba(226, 232, 220, 0.55); text-transform: uppercase; letter-spacing: 0.06em; }
+.inv-slot-item { color: #ffd479; font-size: 11.5px; }
+
+.inv-search { height: 6px; background: rgba(255,255,255,.08); border-radius: 3px; overflow: hidden; }
+.inv-search div { height: 100%; background: #ffb040; }
+
+.inv-ground { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
