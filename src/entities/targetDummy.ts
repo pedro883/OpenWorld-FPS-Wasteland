@@ -3,6 +3,7 @@ import { assets } from '../core/assets';
 import type { PhysicsWorld } from '../physics/world';
 import { ZoneHealth, type Zone } from './health';
 import { HitboxSet } from './hitboxes';
+import { CharacterAnimator } from '../anim/characterAnimator';
 import type { Damageable } from '../combat/types';
 
 const MODEL_IDS = [
@@ -23,7 +24,7 @@ export class TargetDummy implements Damageable {
   readonly health = new ZoneHealth();
   readonly root = new THREE.Group();
   private readonly hitboxes: HitboxSet;
-  private mixer: THREE.AnimationMixer | null = null;
+  private animator: CharacterAnimator | null = null;
   private flashTimer = 0;
   private readonly materials: THREE.MeshStandardMaterial[] = [];
   private lastHitZone: Zone | null = null;
@@ -64,9 +65,11 @@ export class TargetDummy implements Damageable {
     });
     const clips = assets.clips(id);
     if (clips.length) {
-      dummy.mixer = new THREE.AnimationMixer(model);
-      const idle = clips.find((c) => c.name === 'idle');
-      if (idle) dummy.mixer.clipAction(idle).play();
+      // Through the animator, not a bare mixer: the bodies share one clip set
+      // and their bone names carry different merge suffixes, so a raw clip only
+      // binds to the body it was exported with and leaves the rest T-posed.
+      dummy.animator = new CharacterAnimator(model, clips);
+      dummy.animator.set('idle');
     }
     return dummy;
   }
@@ -85,7 +88,7 @@ export class TargetDummy implements Damageable {
   }
 
   update(dt: number): void {
-    this.mixer?.update(dt);
+    this.animator?.update(dt);
     this.health.update(dt);
 
     if (this.flashTimer > 0) {
@@ -101,15 +104,7 @@ export class TargetDummy implements Damageable {
   }
 
   private playDeath(): void {
-    const clips = assets.clips(MODEL_IDS[0]!);
-    const die = clips.find((c) => c.name === 'die');
-    if (this.mixer && die) {
-      this.mixer.stopAllAction();
-      const action = this.mixer.clipAction(die);
-      action.setLoop(THREE.LoopOnce, 1);
-      action.clampWhenFinished = true;
-      action.play();
-    }
+    this.animator?.once('die');
     // Hitboxes come out of the world so a corpse cannot soak more rounds.
     this.hitboxes.dispose();
   }

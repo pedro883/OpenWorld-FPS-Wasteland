@@ -6,3 +6,4 @@ public/assets/
 .DS_Store
 .vite/
 coverage/
+release/

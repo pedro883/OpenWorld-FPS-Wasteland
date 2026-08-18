@@ -49,17 +49,31 @@ function retarget(clip: THREE.AnimationClip, root: THREE.Object3D): THREE.Animat
   });
 
   let changed = false;
-  const tracks = clip.tracks.map((track) => {
+  const tracks: THREE.KeyframeTrack[] = [];
+  for (const track of clip.tracks) {
     const dot = track.name.lastIndexOf('.');
-    if (dot < 0) return track;
+    if (dot < 0) {
+      tracks.push(track);
+      continue;
+    }
     const node = track.name.slice(0, dot);
     const actual = byBase.get(baseName(node));
-    if (!actual || actual === node) return track;
+    if (!actual) {
+      // No such bone on this body — the FBX rig animates a `Root` the merged
+      // GLB does not keep. three would warn once per track per instance and
+      // skip it anyway, so dropping it here is the same result without the noise.
+      changed = true;
+      continue;
+    }
+    if (actual === node) {
+      tracks.push(track);
+      continue;
+    }
     changed = true;
     const copy = track.clone();
     copy.name = `${actual}${track.name.slice(dot)}`;
-    return copy;
-  });
+    tracks.push(copy);
+  }
   if (!changed) return clip;
   const out = new THREE.AnimationClip(clip.name, clip.duration, tracks);
   out.blendMode = clip.blendMode;

@@ -1,0 +1,49 @@
+# Wasteland Web — hospedagem estática (Apache/LiteSpeed, como o Hostinger).
+# Este arquivo é copiado para dist/ pelo build e deve subir junto.
+
+# ---- Tipos MIME ------------------------------------------------------------
+# Sem isto o servidor entrega .glb como octet-stream genérico e .wasm com um
+# tipo que o WebAssembly.instantiateStreaming recusa.
+<IfModule mod_mime.c>
+  AddType model/gltf-binary        .glb
+  AddType model/gltf+json          .gltf
+  AddType application/wasm         .wasm
+  AddType audio/ogg                .ogg
+  AddType image/webp               .webp
+  AddType application/json         .json
+  AddType font/ttf                 .ttf
+</IfModule>
+
+# ---- Compressão ------------------------------------------------------------
+# Só o que ainda não vem comprimido: os .glb já passaram por meshopt e os .ogg
+# e .webp já são formatos comprimidos, então recomprimi-los só gasta CPU.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript
+  AddOutputFilterByType DEFLATE application/json image/svg+xml
+</IfModule>
+
+# ---- Cache -----------------------------------------------------------------
+<IfModule mod_expires.c>
+  ExpiresActive On
+  # Os arquivos de build têm hash no nome, então podem ficar cacheados para sempre.
+  <FilesMatch "\.(js|css)$">
+    ExpiresDefault "access plus 1 year"
+    Header set Cache-Control "public, immutable"
+  </FilesMatch>
+  # Os assets do jogo não têm hash: uma semana, revalidando.
+  <FilesMatch "\.(glb|ogg|webp|png|ttf)$">
+    ExpiresDefault "access plus 7 days"
+  </FilesMatch>
+  # O manifest é o índice de tudo; se ele ficar velho, o resto quebra junto.
+  <FilesMatch "manifest\.json$">
+    ExpiresDefault "access plus 1 hour"
+  </FilesMatch>
+  <FilesMatch "index\.html$">
+    ExpiresDefault "access plus 0 seconds"
+  </FilesMatch>
+</IfModule>
+
+# ---- Segurança básica ------------------------------------------------------
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>
