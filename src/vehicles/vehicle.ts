@@ -213,6 +213,11 @@ export class Vehicle {
     Object.assign(this.input, input);
   }
 
+  /** Engine revs, so the audio can ride the pitch off them. */
+  get rpmValue(): number {
+    return this.rpm;
+  }
+
   get speedKph(): number {
     const v = this.body.linvel();
     return Math.hypot(v.x, v.y, v.z) * 3.6;

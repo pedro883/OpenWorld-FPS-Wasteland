@@ -482,3 +482,21 @@ html, body {
 .map-legend .dot.mission { background: #ffb040; }
 .map-legend .dot.safe { background: #60d08c; }
 .map-legend .dot.waypoint { background: #78c8ff; }
+
+/* ---- Controles do painel de opções ------------------------------------ */
+
+.panel-slider {
+  width: 220px;
+  accent-color: #ffb040;
+  cursor: pointer;
+}
+.slider-value {
+  min-width: 52px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 212, 121, 0.9) !important;
+}
+
+#death-panel .panel-frame { width: min(560px, 92vw); }
+#death-panel .panel-summary strong { color: #e06a5a; font-size: 26px; }
+#death-panel .panel-header h2 { color: #e06a5a; }

@@ -36,6 +36,17 @@ export interface SaveState {
   /** Reserve rounds per calibre. */
   ammo: Record<string, number>;
   stats: SaveStats;
+  /** Options screen: volumes, aim, graphics and keybinds. */
+  settings: SaveSettings;
+}
+
+export interface SaveSettings {
+  volumes: Record<string, number>;
+  sensitivity: number;
+  fov: number;
+  quality: string;
+  invertY: boolean;
+  keybinds: Record<string, string>;
 }
 
 export function defaultSave(seed: number): SaveState {
@@ -52,7 +63,53 @@ export function defaultSave(seed: number): SaveState {
     attachments: {},
     ammo: {},
     stats: { kills: 0, deaths: 0, missionsCompleted: 0, moneyEarned: 0, secondsPlayed: 0 },
+    settings: {
+      volumes: {},
+      sensitivity: 1,
+      fov: 75,
+      quality: 'alta',
+      invertY: false,
+      keybinds: {},
+    },
   };
+}
+
+/**
+ * Settings are sanitised the same way as the rest of the save, and for the same
+ * reason: a corrupted `fov` of zero or a sensitivity of NaN would leave the
+ * player looking at nothing with no way to reach the options screen.
+ */
+function normalizeSettings(raw: unknown, fallback: SaveSettings): SaveSettings {
+  if (!raw || typeof raw !== 'object') return { ...fallback };
+  const data = raw as Record<string, unknown>;
+  const volumes: Record<string, number> = {};
+  if (data.volumes && typeof data.volumes === 'object') {
+    for (const [channel, value] of Object.entries(data.volumes as Record<string, unknown>)) {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        volumes[channel] = Math.max(0, Math.min(1, value));
+      }
+    }
+  }
+  const keys: Record<string, string> = {};
+  if (data.keybinds && typeof data.keybinds === 'object') {
+    for (const [action, code] of Object.entries(data.keybinds as Record<string, unknown>)) {
+      if (typeof code === 'string') keys[action] = code;
+    }
+  }
+  const quality = typeof data.quality === 'string' ? data.quality : fallback.quality;
+  return {
+    volumes,
+    sensitivity: clampNumber(data.sensitivity, fallback.sensitivity, 0.2, 3),
+    fov: clampNumber(data.fov, fallback.fov, 60, 110),
+    quality: ['baixa', 'media', 'alta'].includes(quality) ? quality : fallback.quality,
+    invertY: data.invertY === true,
+    keybinds: keys,
+  };
+}
+
+function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, value));
 }
 
 function num(value: unknown, fallback: number): number {
@@ -135,6 +192,7 @@ export function normalizeSave(raw: unknown, seed: number): SaveState | null {
       moneyEarned: Math.floor(nonNegative(stats.moneyEarned, 0)),
       secondsPlayed: nonNegative(stats.secondsPlayed, 0),
     },
+    settings: normalizeSettings(data.settings, base.settings),
   };
 }
 

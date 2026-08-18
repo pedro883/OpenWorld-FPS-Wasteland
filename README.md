@@ -70,6 +70,7 @@ Cada sistema pode ser iterado sem carregar o mundo inteiro, via query string:
 | `M` | Mapa em tela cheia (clique põe waypoint) |
 | `I` | Mochila: peso, depósito, usar itens |
 | `L` | Arsenal: comprar e vender (só na zona segura) |
+| `O` | Opções: mira, volume, gráficos e teclas |
 | `Espaço` | Pular / subir (freecam) |
 | `Ctrl` | Descer (freecam) |
 | Roda do mouse | Velocidade da freecam |

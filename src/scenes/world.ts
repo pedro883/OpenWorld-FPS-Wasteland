@@ -25,6 +25,11 @@ import { MapPanel } from '../ui/mapPanel';
 import { InventoryPanel } from '../ui/inventoryPanel';
 import { ShopPanel } from '../ui/shopPanel';
 import { defaultSave, loadSave, storeSave, type SaveState } from '../save/saveGame';
+import { GameAudio, type ShotEnvironment } from '../audio/gameAudio';
+import type { Loop } from '../audio/sfx';
+import { keybinds } from '../core/keybinds';
+import { OptionsPanel, type GameSettings, type Quality } from '../ui/optionsPanel';
+import { DeathScreen } from '../ui/deathScreen';
 import vehicleConfig from '../../config/vehicles.json';
 import { Terrain } from '../world/terrain';
 import { WorldLayout } from '../world/layout';
@@ -88,6 +93,13 @@ export class WorldScene implements Scene {
   private readonly ownedWeapons = new Set<string>();
   private save: SaveState = defaultSave(WorldCfg.seed);
   private autosaveTimer = 0;
+  private readonly audio = new GameAudio();
+  private optionsPanel!: OptionsPanel;
+  private deathScreen!: DeathScreen;
+  private settings: GameSettings = { sensitivity: 1, fov: 75, quality: 'alta', invertY: false };
+  private ambienceTimer = 0;
+  private awaitingRespawn = false;
+  private engineLoop: Loop | null = null;
   private toast = '';
   private toastTimer = 0;
   private ridingVehicle: Vehicle | null = null;
@@ -127,11 +139,15 @@ export class WorldScene implements Scene {
     this.effects2 = new StatusEffects(ctx.render.scene);
     this.ballistics.onImpact = (e) => {
       this.effects.handleImpact(e);
+      this.audio.impact(e.point, e.material);
       // Rounds that strike a vehicle feed its localised damage model.
       const owner = e.owner as { vehicle?: Vehicle } | null;
       if (owner?.vehicle && e.damage) owner.vehicle.applyHit(e.point, e.damage);
     };
-    this.ballistics.onExplosion = this.explosions.handle;
+    this.ballistics.onExplosion = (e) => {
+      this.audio.explosion(e.point);
+      this.explosions.handle(e);
+    };
     this.ballistics.onDamage = (e) => {
       this.lastHit = `${e.zone} · ${e.amount.toFixed(0)} · ${e.distance.toFixed(0)} m`;
       this.hud.flashHit(e.zone === 'head');
@@ -175,6 +191,9 @@ export class WorldScene implements Scene {
     this.pointerHint.textContent =
       'Clique para jogar · WASD · Shift correr · C/X postura · 1-5 armas · E interagir · M mapa · I mochila · L arsenal · F1 debug';
     this.pointerHint.addEventListener('click', () => void input.requestLock());
+    // Browsers keep an AudioContext suspended until a real gesture, so the same
+    // click that grabs the pointer is what starts the sound.
+    window.addEventListener('pointerdown', () => void this.audio.start(), { once: false });
     document.body.appendChild(this.pointerHint);
 
     // Build the POIs before the first frame so the village is never empty.
@@ -266,6 +285,11 @@ export class WorldScene implements Scene {
     const segment = to.clone().sub(from);
     const lengthSq = segment.lengthSq();
     if (lengthSq < 1e-6) return;
+    // A round going past the player is the other half of a crack-thump: the
+    // segment we already have is exactly where it passed.
+    if (shooter !== this.player) this.playerCrackThump(from, segment, lengthSq);
+
+
     const radius = aiConfig.suppression.nearMissRadiusMeters;
     const relative = new THREE.Vector3();
     for (const npc of this.npcs) {
@@ -386,6 +410,11 @@ export class WorldScene implements Scene {
     if (seat < 0) return;
     this.ridingVehicle = vehicle;
     this.ridingSeat = seat;
+    void this.audio.engine(vehicle.position).then((loop) => {
+      // Entering and leaving quickly can land the loop after the exit.
+      if (this.ridingVehicle === vehicle) this.engineLoop = loop;
+      else loop?.stop(0.1);
+    });
     this.driveYaw = 0;
     this.drivePitch = 0;
     // The weapon is stowed while riding; firing from inside is not implemented.
@@ -399,6 +428,8 @@ export class WorldScene implements Scene {
     // Put the player down beside the car, on the actual ground.
     const ground = this.streamer.groundAt(drop.x, drop.z);
     this.player.respawnKeepingHealth(new THREE.Vector3(drop.x, (ground ?? drop.y) + 0.2, drop.z));
+    this.engineLoop?.stop(0.3);
+    this.engineLoop = null;
     this.ridingVehicle = null;
     this.ridingSeat = -1;
     this.viewmodel.setVisible(true);
@@ -413,18 +444,23 @@ export class WorldScene implements Scene {
     vehicle.setInput(
       isDriver && !vehicle.destroyed
         ? {
-            throttle: Number(input.isDown('KeyW')),
-            brake: Number(input.isDown('KeyS')),
-            steer: Number(input.isDown('KeyA')) - Number(input.isDown('KeyD')),
-            handbrake: input.isDown('Space'),
+            throttle: Math.max(Number(input.actionDown('forward')), Math.max(0, input.padMove.forward)),
+            brake: Math.max(Number(input.actionDown('back')), Math.max(0, -input.padMove.forward)),
+            steer: Number(input.actionDown('left')) - Number(input.actionDown('right')) - input.padMove.strafe,
+            handbrake: input.actionDown('jump'),
           }
         : { throttle: 0, brake: 0, steer: 0, handbrake: false },
     );
 
-    if (isDriver && input.pressed('KeyZ') && vehicle.isUpsideDown) vehicle.recover();
-    if (input.pressed('KeyV')) this.firstPersonDrive = !this.firstPersonDrive;
+    if (isDriver && input.actionPressed('vehicleRecover') && vehicle.isUpsideDown) vehicle.recover();
+    if (input.actionPressed('vehicleCamera')) this.firstPersonDrive = !this.firstPersonDrive;
 
     // The player rides the seat; their own controller is parked meanwhile.
+    if (this.engineLoop) {
+      this.engineLoop.setPlaybackRate(GameAudio.engineRate(vehicle.rpmValue, 800, 6200));
+      this.engineLoop.setPosition(vehicle.position);
+    }
+
     const seatPos = vehicle.seatWorldPosition(this.ridingSeat);
     this.player.controller.setPosition(new THREE.Vector3(seatPos.x, seatPos.y - 1.0, seatPos.z));
 
@@ -498,11 +534,26 @@ export class WorldScene implements Scene {
       },
     });
     this.shopPanel = new ShopPanel(() => this.shopContext());
-    for (const panel of [this.mapPanel, this.inventoryPanel, this.shopPanel]) {
+    this.optionsPanel = new OptionsPanel(this.audio.mixer, {
+      settings: () => this.settings,
+      apply: (partial) => this.applySettings(partial),
+      save: () => void this.persist(),
+    });
+    this.deathScreen = new DeathScreen();
+    this.deathScreen.onRespawn = () => this.respawnPlayer();
+    for (const panel of [this.mapPanel, this.inventoryPanel, this.shopPanel, this.optionsPanel]) {
       panel.onClose = () => void input.requestLock();
     }
 
     await this.restoreSave();
+  }
+
+  /** Pushes a settings change into the systems that own it. */
+  private applySettings(partial: Partial<GameSettings>): void {
+    this.settings = { ...this.settings, ...partial };
+    this.ctx.render.setQuality(this.settings.quality as Quality);
+    this.ctx.render.setFov(this.settings.fov);
+    this.streamer.setQuality?.(this.settings.quality);
   }
 
   private shopContext(): ShopContext {
@@ -591,6 +642,7 @@ export class WorldScene implements Scene {
   }
 
   private onMissionCompleted(mission: ActiveMission): void {
+    this.audio.ui('mission');
     this.wallet.earn(mission.spec.reward);
     this.save.stats.missionsCompleted++;
     this.showToast(`${mission.spec.name} concluída · $${mission.spec.reward}`);
@@ -681,17 +733,32 @@ export class WorldScene implements Scene {
   // ---- Interação e painéis ------------------------------------------------
 
   private anyPanelOpen(): boolean {
-    return this.mapPanel.isOpen || this.inventoryPanel.isOpen || this.shopPanel.isOpen;
+    return (
+      this.mapPanel.isOpen ||
+      this.inventoryPanel.isOpen ||
+      this.shopPanel.isOpen ||
+      this.optionsPanel.isOpen ||
+      this.deathScreen.isOpen
+    );
   }
 
   private handlePanelKeys(): void {
-    if (input.pressed('KeyM')) this.mapPanel.toggle();
-    if (input.pressed('KeyI')) this.inventoryPanel.toggle();
-    if (input.pressed('KeyL')) this.shopPanel.toggle();
+    // The death screen owns the input while it is up: dismissing it is the only
+    // thing to do, and opening the map over a corpse reads as a bug.
+    if (this.deathScreen.isOpen) return;
+    const toggled =
+      (input.actionPressed('map') && (this.mapPanel.toggle(), true)) ||
+      (input.actionPressed('inventory') && (this.inventoryPanel.toggle(), true)) ||
+      (input.actionPressed('shop') && (this.shopPanel.toggle(), true)) ||
+      (input.actionPressed('options') && (this.optionsPanel.toggle(), true));
+    if (toggled) this.audio.ui('click');
     if (input.pressed('Escape')) {
+      const wasOpen = this.anyPanelOpen();
       this.mapPanel.hide();
       this.inventoryPanel.hide();
       this.shopPanel.hide();
+      this.optionsPanel.hide();
+      if (wasOpen) this.audio.ui('back');
     }
   }
 
@@ -704,6 +771,7 @@ export class WorldScene implements Scene {
     const loot = this.lootField.nearest(this.player.position);
     if (loot) {
       const result = loot.takeAll(this.inventory, this.wallet);
+      this.audio.ui(result.items.length || result.money ? 'loot' : 'error');
       this.showToast(LootField.describe(result));
       return;
     }
@@ -738,6 +806,14 @@ export class WorldScene implements Scene {
       return;
     }
     this.save = loaded;
+    this.audio.mixer.load(loaded.settings.volumes);
+    keybinds.load(loaded.settings.keybinds);
+    this.applySettings({
+      sensitivity: loaded.settings.sensitivity,
+      fov: loaded.settings.fov,
+      quality: loaded.settings.quality as Quality,
+      invertY: loaded.settings.invertY,
+    });
     this.wallet.bank = loaded.bank;
     this.wallet.carried = loaded.carried;
     this.inventory.load(loaded.inventory);
@@ -772,6 +848,14 @@ export class WorldScene implements Scene {
       attachments: this.save.attachments,
       ammo: this.loadout.pouch.reserveSnapshot(),
       stats: { ...this.save.stats, moneyEarned: this.wallet.earned },
+      settings: {
+        volumes: this.audio.mixer.snapshot(),
+        sensitivity: this.settings.sensitivity,
+        fov: this.settings.fov,
+        quality: this.settings.quality,
+        invertY: this.settings.invertY,
+        keybinds: keybinds.toJSON(),
+      },
     };
   }
 
@@ -791,6 +875,13 @@ export class WorldScene implements Scene {
         this.pois.stats,
       ].join('\n');
     });
+    debugOverlay.registerSection('audio', () =>
+      [
+        `contexto ${this.audio.isRunning ? 'ativo' : 'suspenso'}  vozes ${this.audio.sfx.voiceCount}`,
+        `ducking ${(this.audio.mixer.duckAmount * 100).toFixed(0)}%  ${this.audio.inCombat ? 'combate' : 'exploração'}`,
+        `gamepad ${input.padConnected ? 'conectado' : 'ausente'}`,
+      ].join('\n'),
+    );
     debugOverlay.registerSection('economia', () =>
       [
         `bolso $${this.wallet.carried}  banco $${this.wallet.bank}`,
@@ -862,7 +953,7 @@ export class WorldScene implements Scene {
     this.player.fixed(dt, intent);
 
     this.handlePanelKeys();
-    if (input.pressed('KeyE')) this.handleInteraction();
+    if (input.actionPressed('interact')) this.handleInteraction();
     this.updateDriving(dt);
     for (const vehicle of this.vehicles) {
       // A vehicle only simulates once there is ground beneath it.
@@ -882,8 +973,8 @@ export class WorldScene implements Scene {
       input.locked && this.loadout.ready && !this.ridingVehicle && !this.anyPanelOpen();
     weapon.setTrigger(input.isMouseDown(MOUSE_LEFT) && canShoot);
     if (!this.ridingVehicle) {
-      if (input.pressed('KeyR')) weapon.reload();
-      if (input.pressed('KeyB')) weapon.cycleFireMode();
+      if (input.actionPressed('reload')) weapon.reload();
+      if (input.actionPressed('fireMode')) weapon.cycleFireMode();
     }
     if (input.pressed('KeyF')) this.player.health.bandage();
     if (input.pressed('KeyK')) this.player.respawn(this.spawn);
@@ -900,6 +991,7 @@ export class WorldScene implements Scene {
       this.player.yaw += recoil.yaw;
       this.viewmodel.addRecoil(recoil.pitch * 1.6, recoil.yaw * 1.6);
       this.muzzle.trigger(this.viewmodel.muzzleWorld());
+      this.audio.shot(origin, weapon.def.class, this.shotEnvironment(), 0, true);
     }
     this.loadout.update(dt);
 
@@ -950,6 +1042,11 @@ export class WorldScene implements Scene {
     }
     for (const squad of this.squads) squad.update(dt);
 
+    // Any agent that can see the player counts as contact for the music.
+    if (this.npcs.some((npc) => npc.isAlive && npc.awareness === 'engaged')) {
+      this.audio.reportContact();
+    }
+
     this.harvestTheDead();
     this.director.update(dt, this.player.position);
     void this.updateMissionGarrisons();
@@ -973,18 +1070,56 @@ export class WorldScene implements Scene {
    * it is deposited, and the bank is what makes a bad run survivable.
    */
   private updatePlayerDeath(): void {
-    if (this.player.health.alive) return;
+    if (this.player.health.alive || this.awaitingRespawn) return;
+    this.awaitingRespawn = true;
     const lost = this.wallet.die();
     const bagValue = this.inventory.value;
     this.inventory.clear();
     this.save.stats.deaths++;
-    this.showToast(
-      lost + bagValue > 0
-        ? `Você morreu. Perdeu $${lost} e ${bagValue} em equipamento. Banco: $${this.wallet.bank}.`
-        : `Você morreu. Banco: $${this.wallet.bank}.`,
-    );
-    this.player.respawn(this.spawn);
+    void this.audio.playDeathTrack();
     void this.persist();
+    // Death interrupts whatever was open: two stacked panels leave the player
+    // reading a shop over their own corpse, with Escape gated behind the death
+    // screen and no obvious way back.
+    this.mapPanel.hide();
+    this.inventoryPanel.hide();
+    this.shopPanel.hide();
+    this.optionsPanel.hide();
+    this.deathScreen.present({
+      moneyLost: lost,
+      gearLost: bagValue,
+      bank: this.wallet.bank,
+      killer: this.lastHit ? `último dano: ${this.lastHit}` : '',
+      stats: this.save.stats,
+    });
+  }
+
+  private respawnPlayer(): void {
+    this.player.respawn(this.spawn);
+    this.awaitingRespawn = false;
+    void input.requestLock();
+  }
+
+  /** How close a round came to the player's ear, and how far the shooter was. */
+  private playerCrackThump(from: THREE.Vector3, segment: THREE.Vector3, lengthSq: number): void {
+    const ear = this.player.controller.eyePosition;
+    const earVec = new THREE.Vector3(ear.x, ear.y, ear.z);
+    const t = THREE.MathUtils.clamp(earVec.clone().sub(from).dot(segment) / lengthSq, 0, 1);
+    const closest = from.clone().addScaledVector(segment, t);
+    const miss = closest.distanceTo(earVec);
+    if (miss > 8) return;
+    this.audio.crackThump(closest, miss, from.distanceTo(earVec));
+    // Being shot at is contact as far as the music is concerned.
+    this.audio.reportContact();
+  }
+
+  /** Open ground, trees or walls — what the shot's tail should sound like. */
+  private shotEnvironment(): ShotEnvironment {
+    const p = this.player.position;
+    if (this.layout.pois.some((poi) => Math.hypot(p.x - poi.x, p.z - poi.z) < poi.radius * 0.6)) {
+      return 'interior';
+    }
+    return this.terrain.biomeAt(p.x, p.z) === 'floresta' ? 'floresta' : 'aberto';
   }
 
   private handleWeaponSwitching(): void {
@@ -1002,7 +1137,7 @@ export class WorldScene implements Scene {
   frame(alpha: number, dt: number): void {
     this.lastLook.x = input.mouseDX;
     this.lastLook.y = input.mouseDY;
-    this.player.applyLook();
+    this.player.applyLook(PlayerCfg.camera.sensitivity * this.settings.sensitivity, this.settings.invertY);
     this.player.updateCamera(this.ctx.render.camera, alpha, dt);
 
     const weapon = this.loadout.current;
@@ -1044,6 +1179,25 @@ export class WorldScene implements Scene {
       safeZone: this.safeZone,
     });
     this.pointerHint.classList.toggle('hidden', input.locked);
+
+    // Footsteps come from the travelled speed, so they stay in step with the
+    // legs whether the player is walking, sprinting or sliding down a slope.
+    const here = this.player.position;
+    this.audio.footsteps(
+      dt,
+      here,
+      this.ridingVehicle ? 0 : this.player.speed,
+      this.terrain.biomeAt(here.x, here.z),
+      this.player.isGrounded,
+    );
+    this.audio.update(dt, this.ctx.render.camera);
+
+    this.ambienceTimer -= dt;
+    if (this.ambienceTimer <= 0) {
+      this.ambienceTimer = 2;
+      void this.audio.setAmbience(this.terrain.biomeAt(here.x, here.z), this.cycle.isNight);
+      void this.audio.updateMusic();
+    }
 
     for (const vehicle of this.vehicles) vehicle.frame();
     this.applyVehicleCamera(dt);
@@ -1141,7 +1295,10 @@ export class WorldScene implements Scene {
     this.mapPanel.dispose();
     this.inventoryPanel.dispose();
     this.shopPanel.dispose();
-    for (const name of ['mundo', 'ciclo', 'player', 'arma', 'ia', 'veiculo', 'economia']) {
+    this.optionsPanel.dispose();
+    this.deathScreen.dispose();
+    this.audio.dispose();
+    for (const name of ['mundo', 'ciclo', 'player', 'arma', 'ia', 'veiculo', 'economia', 'audio']) {
       debugOverlay.removeSection(name);
     }
   }

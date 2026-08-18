@@ -22,14 +22,18 @@ export interface PlayerInput {
 
 /** Reads the keyboard into an intent struct so bots can drive the same code. */
 export function readPlayerInput(): PlayerInput {
+  const pad = input.padMove;
+  // Keyboard and stick are summed, then clamped: whichever the player reaches
+  // for works, and holding both does not double the speed.
+  const clamp = (v: number) => Math.max(-1, Math.min(1, v));
   return {
-    forward: Number(input.isDown('KeyW')) - Number(input.isDown('KeyS')),
-    strafe: Number(input.isDown('KeyD')) - Number(input.isDown('KeyA')),
-    sprint: input.isDown('ShiftLeft'),
-    jump: input.pressed('Space'),
-    crouch: input.pressed('KeyC'),
-    prone: input.pressed('KeyX'),
-    ads: input.isMouseDown(MOUSE_RIGHT),
+    forward: clamp(Number(input.actionDown('forward')) - Number(input.actionDown('back')) + pad.forward),
+    strafe: clamp(Number(input.actionDown('right')) - Number(input.actionDown('left')) + pad.strafe),
+    sprint: input.actionDown('sprint'),
+    jump: input.actionPressed('jump'),
+    crouch: input.actionPressed('crouch'),
+    prone: input.actionPressed('prone'),
+    ads: input.isMouseDown(MOUSE_RIGHT) || input.padAds,
   };
 }
 
@@ -106,16 +110,19 @@ export class Player implements Damageable {
   }
 
   /** Mouse look runs per frame, not per tick, so aiming never feels stepped. */
-  applyLook(sensitivity = Cfg.camera.sensitivity): void {
-    if (!input.locked) return;
+  applyLook(sensitivity = Cfg.camera.sensitivity, invertY = false): void {
+    // The stick keeps working with the pointer unlocked; the mouse does not.
+    const dx = (input.locked ? input.mouseDX : 0) + input.padLookX;
+    const dy = ((input.locked ? input.mouseDY : 0) + input.padLookY) * (invertY ? -1 : 1);
+    if (dx === 0 && dy === 0 && !input.locked) return;
     const scale = this.ads ? 0.55 : 1;
-    this.yaw -= input.mouseDX * sensitivity * scale;
-    this.pitch -= input.mouseDY * sensitivity * scale;
+    this.yaw -= dx * sensitivity * scale;
+    this.pitch -= dy * sensitivity * scale;
     this.pitch = THREE.MathUtils.clamp(this.pitch, -Math.PI / 2 + 0.02, Math.PI / 2 - 0.02);
 
     this.swayTarget.set(
-      THREE.MathUtils.clamp(-input.mouseDX * 0.0015, -1, 1),
-      THREE.MathUtils.clamp(-input.mouseDY * 0.0015, -1, 1),
+      THREE.MathUtils.clamp(-dx * 0.0015, -1, 1),
+      THREE.MathUtils.clamp(-dy * 0.0015, -1, 1),
     );
   }
 

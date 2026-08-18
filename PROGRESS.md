@@ -15,7 +15,8 @@ como stub visível, nunca como TODO silencioso.
 | 5. IA | ✅ concluída |
 | 6. Veículos | ✅ concluída |
 | 7. Missões + loot + economia | ✅ concluída |
-| 8–9 | pendentes |
+| 8. Arsenal completo + polimento | ✅ concluída |
+| 9. Multiplayer (opcional) | não iniciada |
 
 ---
 
@@ -782,3 +783,90 @@ Inventário arrastar-e-soltar (a mochila é lista com botões), fome e sede — 
 as marca como opcionais por config —, e as missões de escolta e sabotagem existem
 no gerador com objetivo e temporizador, mas ainda não têm o NPC prisioneiro nem a
 carga plantável como entidades no mundo: hoje resolvem pelo tempo dentro da área.
+
+---
+
+## Fase 8 — Áudio, menus e controles ✅
+
+O escopo desta fase era "arsenal completo + polimento". O arsenal já estava
+pronto desde antes: **20 armas** contra as 12 pedidas, **9 acessórios** modulares
+e o clima no ciclo dia/noite. O que faltava era o áudio, os menus e os controles.
+
+**Áudio**
+
+- **Mixer com canais** (`audio/mixer.ts`): geral, efeitos, veículos, vozes, música
+  e interface, cada um com seu ganho. O contexto começa suspenso porque o
+  navegador exige um gesto do usuário — o mesmo clique que trava o ponteiro é o
+  que liga o som.
+- **Ducking**: ataque imediato e liberação lenta. É isso que faz um tiroteio
+  sentar **em cima** da música em vez de brigar com ela: o primeiro tiro abre o
+  espaço e o fogo contínuo o mantém aberto.
+- **Espacialização** com `PannerNode` HRTF e rolloff inverso, com teto de vozes:
+  um tiroteio sem limite pede duzentas fontes simultâneas e engasga a thread de
+  áudio, e passando de duas dúzias ninguém ouve diferença.
+- **Tiro em três camadas** (`audio/gameAudio.ts`): o mecanismo é seco e pertence a
+  quem puxou o gatilho, não ao mundo; o estampido é o que viaja e é espacializado;
+  a cauda é o ambiente respondendo, **atrasada pela distância**, que é o que faz o
+  mesmo fuzil soar diferente na floresta e no descampado.
+- **Crack-thump**: a bala é supersônica, então o estalo da passagem chega antes do
+  estampido de quem atirou. O atraso é a distância dividida pela velocidade do som,
+  e o ponto de passagem sai do mesmo segmento que a supressão já calcula.
+- **Passos por material** conforme o bioma, **motor com pitch amarrado ao RPM**,
+  **ambiente por bioma e hora** (com camada extra de noite) e **música dinâmica**
+  que troca para a faixa de combate ao primeiro contato e volta depois de 8 s sem.
+
+**Controles**
+
+- **Ações nomeadas** (`core/keybinds.ts`): o jogo pergunta por `forward`, nunca por
+  `KeyW`. Essa indireção é o que torna tudo remapeável — e o que faz um teclado
+  não-QWERTY funcionar, já que `code` é posição física.
+- Remapear **tira a tecla de quem a tinha**: deixar duplicata daria dois
+  significados a uma tecla, com o vencedor decidido por ordem de iteração — um bug
+  que parece aleatório de fora.
+- Teclas reservadas (`Esc`, `F1`, `F5`, `F11`, `F12`, `Tab`) são recusadas.
+- **Gamepad**: analógico esquerdo anda, direito olha com resposta quadrática (mira
+  fina no centro, giro rápido na borda), gatilhos atiram e miram. O pad é lido uma
+  vez por frame, porque o navegador devolve um objeto novo a cada chamada e
+  consultar de vários lugares leria instantes diferentes.
+
+**Menus**
+
+- **Opções** (`O`): sensibilidade, campo de visão, inverter eixo Y, seis sliders de
+  volume, qualidade gráfica e a lista de teclas remapeáveis.
+- **Qualidade** mira o alvo do aceite (GPU integrada): "baixa" desliga a sombra —
+  o mapa de sombra direcional é a coisa mais cara da cena —, reduz o pixel ratio e
+  **puxa o horizonte** do streaming para 60% do raio.
+- **Tela de morte** com o que se perdeu, o que o banco preservou e as estatísticas
+  da run.
+- Tudo isso vai para o save, junto com as teclas.
+
+**Aceite verificado**
+
+| | |
+|---|---|
+| Contexto de áudio | ativo; vozes acumulam a cada evento (tiro 2, +impacto e explosão 3, +crack-thump 5, +passos 10) |
+| Ducking | vai a 100% na explosão e relaxa sozinho |
+| Música dinâmica | fora de combate `Flowing Rocks` (exploração) → contato → `Alpha Dance` (combate) |
+| Remapear | `forward`→Z tira o Z de "desvirar veículo" |
+| Tecla reservada | `F5` recusada, `jump` continua em Espaço |
+| Qualidade | "baixa" desliga a sombra; "alta" religa |
+| FOV | slider chega na câmera |
+| Build de produção | roda sem erro no console e sem 404 |
+
+**Defeito encontrado no teste**
+
+Morri para o esquadrão da vila enquanto o painel de opções estava aberto, e as
+duas telas ficaram **empilhadas** — pior, `Esc` estava bloqueado pela tela de
+morte, então não havia saída óbvia. Morrer agora fecha o que estiver aberto.
+
+**Limite do material, não do código**
+
+O pacote Kenney é CC0 e estilizado: **não existe tiro realista nele**. As camadas
+usam o que há (lasers, impactos, motores). A arquitetura é a que a spec pede, e
+trocar os samples é mexer só em `config/audio.json` — nenhum id de som está
+escrito em código.
+
+**Fora do escopo desta fase**
+
+Normalização a −16 LUFS (precisa de ffmpeg, que não está instalado) e reverb por
+convolução — a cauda hoje é um sample por ambiente, não um `ConvolverNode`.

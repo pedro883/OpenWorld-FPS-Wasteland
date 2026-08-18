@@ -287,6 +287,11 @@ class AssetManager {
     return this.manifest?.audio[id];
   }
 
+  /** Already-decoded buffer, or null. Lets a one-shot skip rather than fire late. */
+  audioBuffer(id: string): AudioBuffer | null {
+    return this.audioBuffers.get(id) ?? null;
+  }
+
   async loadAudio(ctx: AudioContext, id: string): Promise<AudioBuffer | null> {
     const cached = this.audioBuffers.get(id);
     if (cached) return cached;

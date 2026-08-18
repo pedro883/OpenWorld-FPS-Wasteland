@@ -52,6 +52,18 @@ export class TerrainStreamer {
   private readonly pendingLod = new Map<number, { key: string; lod: number }>();
 
   readonly scatter: ScatterField;
+  /**
+   * How far chunks stream, as a fraction of the configured radius.
+   *
+   * The lowest quality setting is aimed at integrated GPUs, where terrain draw
+   * calls are the budget: pulling the horizon in buys more than any shader
+   * change would.
+   */
+  private radiusScale = 1;
+  setQuality(quality: string): void {
+    this.radiusScale = quality === 'baixa' ? 0.6 : quality === 'media' ? 0.8 : 1;
+  }
+
   /** Counters for the debug overlay. */
   stats = { loaded: 0, pending: 0, builtTotal: 0, instances: 0 };
 
@@ -138,8 +150,11 @@ export class TerrainStreamer {
     const size = WorldCfg.chunkMeters;
     const cx = Math.floor(viewer.x / size);
     const cz = Math.floor(viewer.z / size);
-    const loadRadius = WorldCfg.streaming.loadRadiusChunks;
-    const unloadRadius = WorldCfg.streaming.unloadRadiusChunks;
+    const loadRadius = Math.max(2, Math.round(WorldCfg.streaming.loadRadiusChunks * this.radiusScale));
+    const unloadRadius = Math.max(
+      loadRadius + 1,
+      Math.round(WorldCfg.streaming.unloadRadiusChunks * this.radiusScale),
+    );
 
     // Request the ring nearest first, so the ground under the player exists
     // before the horizon does.

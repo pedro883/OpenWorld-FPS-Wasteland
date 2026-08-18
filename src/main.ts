@@ -32,6 +32,9 @@ async function boot(): Promise<void> {
       input.endFixedStep();
     },
     render: (alpha, dt) => {
+      // One pad snapshot per frame: the browser hands out a fresh object on
+      // every call, so polling it in several places would read several instants.
+      input.pollGamepad();
       profiler.begin('other');
       scene.frame(alpha, dt);
       profiler.end('other');

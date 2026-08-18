@@ -1,0 +1,126 @@
+{
+  "_comment": "Mixer, espacialização e o mapa de evento -> som. O pacote Kenney é CC0 e estilizado: não existe tiro realista nele, então as camadas usam o que há (lasers, impactos, motores). A arquitetura é a que a spec pede — mecanismo + estampido + cauda, panorâmica HRTF, crack-thump — e trocar os samples depois é só mexer aqui.",
+
+  "channels": {
+    "_comment": "Volume inicial de cada canal, 0 a 1. O jogador ajusta nas opções e o valor fica no save.",
+    "master": 0.8,
+    "sfx": 1.0,
+    "vehicles": 0.7,
+    "voices": 0.9,
+    "music": 0.35,
+    "ui": 0.6
+  },
+
+  "spatial": {
+    "_comment": "PannerNode HRTF com rolloff inverso. refDistance é onde o som ainda está no volume cheio; maxDistance é onde para de cair.",
+    "panningModel": "HRTF",
+    "distanceModel": "inverse",
+    "refDistanceMeters": 6,
+    "maxDistanceMeters": 900,
+    "rolloffFactor": 0.9,
+    "voiceLimit": 24
+  },
+
+  "ducking": {
+    "_comment": "Um tiro perto abaixa música e ambiente por um instante, para o disparo ter espaço.",
+    "attackSeconds": 0.04,
+    "releaseSeconds": 0.9,
+    "musicDuck": 0.35,
+    "ambienceDuck": 0.5
+  },
+
+  "_comment_shot": "Cada disparo toca em camadas: `mech` é o ferrolho, perto e seco; `report` é o estampido, que viaja; `tail` é a cauda de reverb do ambiente. A cauda entra com atraso proporcional à distância.",
+  "shot": {
+    "mech": ["interface-sounds/switch_004", "interface-sounds/switch_005"],
+    "byClass": {
+      "pistol": ["sci-fi-sounds/laserSmall_000", "sci-fi-sounds/laserSmall_001", "sci-fi-sounds/laserSmall_002"],
+      "smg": ["sci-fi-sounds/laserSmall_003", "sci-fi-sounds/laserSmall_004", "digital-audio/laser1"],
+      "rifle": ["sci-fi-sounds/laserLarge_000", "sci-fi-sounds/laserLarge_001", "sci-fi-sounds/laserLarge_002"],
+      "marksman": ["sci-fi-sounds/laserLarge_003", "digital-audio/laser5"],
+      "sniper": ["sci-fi-sounds/laserRetro_000", "digital-audio/laser8"],
+      "shotgun": ["sci-fi-sounds/explosionCrunch_000", "sci-fi-sounds/explosionCrunch_001"],
+      "lmg": ["sci-fi-sounds/laserLarge_004", "digital-audio/laser3"],
+      "launcher": ["sci-fi-sounds/explosionCrunch_002"],
+      "flamer": ["sci-fi-sounds/forceField_000"],
+      "throwable": ["interface-sounds/drop_003"],
+      "melee": ["foley-sounds/hitHelmet1", "foley-sounds/hitHelmet2"]
+    },
+    "tailByEnvironment": {
+      "_comment": "A cauda muda com o entorno: campo aberto rende quase nada, interior e floresta rendem eco.",
+      "aberto": ["sci-fi-sounds/laserRetro_004"],
+      "floresta": ["sci-fi-sounds/laserRetro_003"],
+      "interior": ["sci-fi-sounds/laserRetro_002"]
+    },
+    "tailDelayPerMetre": 0.0029,
+    "tailGain": 0.35
+  },
+
+  "_comment_crack": "Crack-thump: a bala passa (crack) antes de o estampido distante chegar (thump), porque ela é mais rápida que o som. O atraso vem da distância dividida pela velocidade do som.",
+  "crackThump": {
+    "crack": ["digital-audio/laser6", "digital-audio/laser7"],
+    "speedOfSoundMetresPerSecond": 343,
+    "maxMissDistanceMetres": 8,
+    "gain": 0.7
+  },
+
+  "impacts": {
+    "concrete": ["impact-sounds/impactPunch_medium_000", "impact-sounds/impactPunch_medium_001"],
+    "metal": ["impact-sounds/impactMetal_medium_000", "impact-sounds/impactMetal_medium_001"],
+    "wood": ["impact-sounds/impactWood_medium_000", "impact-sounds/impactWood_medium_001"],
+    "dirt": ["impact-sounds/impactSoft_medium_000", "impact-sounds/impactSoft_medium_001"],
+    "flesh": ["impact-sounds/impactSoft_heavy_000", "impact-sounds/impactSoft_heavy_001"],
+    "default": ["impact-sounds/impactGeneric_light_000", "impact-sounds/impactGeneric_light_001"]
+  },
+
+  "explosion": ["sci-fi-sounds/explosionCrunch_003", "sci-fi-sounds/explosionCrunch_004"],
+
+  "footsteps": {
+    "_comment": "Materiais que o pack traz. O bioma do terreno escolhe qual usar.",
+    "grass": ["impact-sounds/footstep_grass_000", "impact-sounds/footstep_grass_001", "impact-sounds/footstep_grass_002", "impact-sounds/footstep_grass_003"],
+    "concrete": ["impact-sounds/footstep_concrete_000", "impact-sounds/footstep_concrete_001", "impact-sounds/footstep_concrete_002", "impact-sounds/footstep_concrete_003"],
+    "wood": ["impact-sounds/footstep_wood_000", "impact-sounds/footstep_wood_001", "impact-sounds/footstep_wood_002", "impact-sounds/footstep_wood_003"],
+    "carpet": ["impact-sounds/footstep_carpet_000", "impact-sounds/footstep_carpet_001"],
+    "snow": ["impact-sounds/footstep_snow_000", "impact-sounds/footstep_snow_001"],
+    "intervalWalkSeconds": 0.52,
+    "intervalSprintSeconds": 0.34,
+    "gain": 0.45
+  },
+
+  "vehicle": {
+    "_comment": "O motor é um loop com o pitch amarrado ao RPM: playbackRate = idlePitch + (fração da faixa) * range.",
+    "engineLoop": "sci-fi-sounds/spaceEngineLow_000",
+    "idlePlaybackRate": 0.65,
+    "playbackRateRange": 1.1,
+    "gain": 0.5
+  },
+
+  "ambience": {
+    "_comment": "Um loop por bioma, com um segundo loop de noite por cima.",
+    "campo": "sci-fi-sounds/forceField_002",
+    "floresta": "sci-fi-sounds/forceField_003",
+    "industrial": "sci-fi-sounds/computerNoise_000",
+    "militar": "sci-fi-sounds/computerNoise_001",
+    "night": "sci-fi-sounds/spaceEngineLow_004",
+    "gain": 0.22,
+    "nightGain": 0.16,
+    "crossfadeSeconds": 2.5
+  },
+
+  "music": {
+    "_comment": "Música dinâmica: uma faixa de exploração e uma de combate, com crossfade. O combate entra quando há hostil ciente por perto e sai depois de `combatHoldSeconds` sem contato.",
+    "explore": ["music-loops/Infinite Descent", "music-loops/Flowing Rocks", "music-loops/Mission Plausible"],
+    "combat": ["music-loops/Alpha Dance", "music-loops/Time Driving"],
+    "death": "music-loops/Game Over",
+    "combatHoldSeconds": 8,
+    "crossfadeSeconds": 3
+  },
+
+  "ui": {
+    "click": "interface-sounds/click_001",
+    "back": "interface-sounds/back_001",
+    "buy": "interface-sounds/confirmation_001",
+    "error": "interface-sounds/error_002",
+    "loot": "foley-sounds/pickup1",
+    "mission": "interface-sounds/confirmation_002"
+  }
+}

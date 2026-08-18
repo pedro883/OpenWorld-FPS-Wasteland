@@ -125,6 +125,33 @@ export class RenderContext {
   }
 
   /** Overlay FOV, separate from the world's (which ADS also animates). */
+  /**
+   * Graphics quality, aimed squarely at the integrated-GPU target in the spec.
+   *
+   * Shadows are the first thing to go: a single directional shadow map is the
+   * most expensive thing in this scene, and dropping it is worth more frames
+   * than any other switch here.
+   */
+  setQuality(quality: 'baixa' | 'media' | 'alta'): void {
+    const shadows = quality !== 'baixa';
+    this.renderer.shadowMap.enabled = shadows;
+    this.sun.castShadow = shadows;
+    const size = quality === 'alta' ? 2048 : 1024;
+    if (this.sun.shadow.mapSize.width !== size) {
+      this.sun.shadow.mapSize.set(size, size);
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+    }
+    const cap = quality === 'alta' ? 2 : quality === 'media' ? 1.5 : 1;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap));
+  }
+
+  setFov(fov: number): void {
+    if (Math.abs(this.camera.fov - fov) < 0.01) return;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+  }
+
   setOverlayFov(fov: number): void {
     if (Math.abs(this.overlayCamera.fov - fov) < 0.01) return;
     this.overlayCamera.fov = fov;
