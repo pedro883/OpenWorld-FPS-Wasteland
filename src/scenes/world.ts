@@ -15,6 +15,16 @@ import { ImpactEffects, MuzzleFlash } from '../combat/impacts';
 import { LOADOUT } from '../combat/arsenal';
 import { StatusEffects } from '../combat/statusEffects';
 import { Vehicle } from '../vehicles/vehicle';
+import { Inventory, itemDef } from '../entities/inventory';
+import { LootField, type LootSource } from '../entities/lootContainer';
+import { Wallet } from '../economy/wallet';
+import { SAFE_ZONE, sellAllValuables, type ShopContext } from '../economy/shop';
+import { MissionDirector, type ActiveMission } from '../missions/director';
+import type { MissionWorld } from '../missions/generator';
+import { MapPanel } from '../ui/mapPanel';
+import { InventoryPanel } from '../ui/inventoryPanel';
+import { ShopPanel } from '../ui/shopPanel';
+import { defaultSave, loadSave, storeSave, type SaveState } from '../save/saveGame';
 import vehicleConfig from '../../config/vehicles.json';
 import { Terrain } from '../world/terrain';
 import { WorldLayout } from '../world/layout';
@@ -63,6 +73,23 @@ export class WorldScene implements Scene {
   private gizmosOn = false;
   private effects2!: StatusEffects;
   private readonly vehicles: Vehicle[] = [];
+  private readonly inventory = new Inventory();
+  private readonly wallet = new Wallet();
+  private lootField!: LootField;
+  private director!: MissionDirector;
+  private mapPanel!: MapPanel;
+  private inventoryPanel!: InventoryPanel;
+  private shopPanel!: ShopPanel;
+  private safeZone: { x: number; z: number; radius: number } | null = null;
+  /** Garrisons already put in the world, keyed by mission id. */
+  private readonly missionNpcs = new Map<string, Npc[]>();
+  /** Corpses already turned into loot, so a body is only harvested once. */
+  private readonly harvested = new Set<number>();
+  private readonly ownedWeapons = new Set<string>();
+  private save: SaveState = defaultSave(WorldCfg.seed);
+  private autosaveTimer = 0;
+  private toast = '';
+  private toastTimer = 0;
   private ridingVehicle: Vehicle | null = null;
   private ridingSeat = -1;
   private firstPersonDrive = false;
@@ -146,7 +173,7 @@ export class WorldScene implements Scene {
     this.pointerHint = document.createElement('div');
     this.pointerHint.id = 'pointer-hint';
     this.pointerHint.textContent =
-      'Clique para jogar · WASD · Shift correr · C/X postura · 1-5 armas · T hora · Y clima · F1 debug';
+      'Clique para jogar · WASD · Shift correr · C/X postura · 1-5 armas · E interagir · M mapa · I mochila · L arsenal · F1 debug';
     this.pointerHint.addEventListener('click', () => void input.requestLock());
     document.body.appendChild(this.pointerHint);
 
@@ -164,6 +191,7 @@ export class WorldScene implements Scene {
     // A round passing close to an agent is what suppression is made of.
     this.ballistics.onPass = (from, to, shooter) => this.applySuppression(from, to, shooter);
 
+    await this.setupEconomyAndMissions();
     this.registerDebug();
   }
 
@@ -404,6 +432,354 @@ export class WorldScene implements Scene {
     void dt;
   }
 
+  /** Loot on the ground, the mission board, the panels and the save. */
+  private async setupEconomyAndMissions(): Promise<void> {
+    this.lootField = new LootField({
+      scene: this.ctx.render.scene,
+      groundAt: (x, z) => this.streamer.groundAt(x, z) ?? this.terrain.heightAt(x, z),
+    });
+    for (const poi of this.layout.pois) this.lootField.spawnAtPoi(poi);
+
+    // The safe zone is the village: the one place with a bank and an arsenal,
+    // which is what makes walking home with a full bag a decision.
+    const home = this.layout.pois.find((poi) => poi.kind === SAFE_ZONE.poiKind);
+    if (home) {
+      // The zone has to cover the whole village, not a disc at its centre: the
+      // player spawns at the village edge, so a smaller radius would start and
+      // respawn them outside it, with the arsenal refusing service and no
+      // visible reason why.
+      this.safeZone = {
+        x: home.x,
+        z: home.z,
+        radius: Math.max(SAFE_ZONE.radiusMeters, home.radius),
+      };
+    }
+
+    const missionWorld: MissionWorld = {
+      pois: this.layout.pois.map((poi) => ({
+        id: poi.id,
+        name: poi.name,
+        kind: poi.kind,
+        x: poi.x,
+        z: poi.z,
+        radius: poi.radius,
+      })),
+      roads: this.layout.roads.map((road) => ({
+        ax: road.ax,
+        az: road.az,
+        bx: road.bx,
+        bz: road.bz,
+      })),
+      halfExtent: WorldCfg.sizeMeters / 2,
+      homeX: this.spawn.x,
+      homeZ: this.spawn.z,
+    };
+
+    this.director = new MissionDirector(WorldCfg.seed, missionWorld, {
+      onSpawn: (mission) => this.onMissionSpawned(mission),
+      onCompleted: (mission) => this.onMissionCompleted(mission),
+      onEnd: (mission) => this.onMissionEnded(mission),
+    });
+    this.director.start();
+
+    this.mapPanel = new MapPanel(
+      this.terrain,
+      this.layout.pois,
+      this.layout.roads,
+      WorldCfg.sizeMeters / 2,
+    );
+    this.inventoryPanel = new InventoryPanel(this.inventory, this.wallet, {
+      use: (id) => this.useItem(id),
+      drop: (id) => void this.inventory.remove(id, 1),
+      inSafeZone: () => this.isInSafeZone(),
+      deposit: () => {
+        const moved = this.wallet.deposit();
+        this.showToast(`Depositado $${moved}.`);
+      },
+    });
+    this.shopPanel = new ShopPanel(() => this.shopContext());
+    for (const panel of [this.mapPanel, this.inventoryPanel, this.shopPanel]) {
+      panel.onClose = () => void input.requestLock();
+    }
+
+    await this.restoreSave();
+  }
+
+  private shopContext(): ShopContext {
+    return {
+      wallet: this.wallet,
+      inventory: this.inventory,
+      inSafeZone: this.isInSafeZone(),
+      ownsWeapon: (id) => this.ownedWeapons.has(id) || this.loadout.all.some((s) => s.weapon.id === id),
+      grantWeapon: (id) => {
+        this.ownedWeapons.add(id);
+        this.loadout.addWeapon(id);
+        this.showToast('Arma adicionada ao arsenal.');
+      },
+      grantVehicle: (id) => this.deliverVehicle(id),
+    };
+  }
+
+  private isInSafeZone(): boolean {
+    if (!this.safeZone) return false;
+    const p = this.player.position;
+    return Math.hypot(p.x - this.safeZone.x, p.z - this.safeZone.z) <= this.safeZone.radius;
+  }
+
+  /** A bought vehicle is parked at the edge of the safe zone. */
+  private deliverVehicle(typeId: string): boolean {
+    if (!this.safeZone) return false;
+    const angle = this.vehicles.length * 0.7;
+    const x = this.safeZone.x + Math.cos(angle) * (this.safeZone.radius * 0.75);
+    const z = this.safeZone.z + Math.sin(angle) * (this.safeZone.radius * 0.75);
+    const ground = this.streamer.groundAt(x, z);
+    if (ground === null) return false;
+    void Vehicle.spawn(
+      this.ctx.physics,
+      this.ctx.render.scene,
+      typeId,
+      new THREE.Vector3(x, ground + 0.4, z),
+      -angle,
+    ).then((vehicle) => this.vehicles.push(vehicle));
+    this.showToast('Veículo entregue na zona segura.');
+    return true;
+  }
+
+  /** Consumables. Returns the line to show, or null when nothing happened. */
+  private useItem(id: string): string | null {
+    const def = itemDef(id);
+    if (!def || !this.inventory.has(id)) return null;
+
+    if (def.fuelLitres) {
+      const vehicle = this.vehicleInReach();
+      if (!vehicle) return 'Nenhum veículo por perto.';
+      vehicle.refuel(def.fuelLitres);
+      this.inventory.remove(id, 1);
+      return `Abastecido +${def.fuelLitres} L.`;
+    }
+    if (def.repairs) {
+      const vehicle = this.vehicleInReach();
+      if (!vehicle) return 'Nenhum veículo por perto.';
+      vehicle.engineHealth = Math.min(100, vehicle.engineHealth + def.repairs);
+      this.inventory.remove(id, 1);
+      return `Motor reparado para ${vehicle.engineHealth.toFixed(0)}%.`;
+    }
+    if (def.healsZone) {
+      const healed = this.player.health.heal(def.healsZone, def.stopsBleeding === true);
+      if (!healed) return 'Nada para tratar.';
+      this.inventory.remove(id, 1);
+      return def.stopsBleeding ? 'Ferimento tratado.' : 'Recuperado.';
+    }
+    return null;
+  }
+
+  // ---- Missões -----------------------------------------------------------
+
+  private onMissionSpawned(mission: ActiveMission): void {
+    for (let i = 0; i < mission.spec.lootCaches; i++) {
+      const angle = (i / Math.max(1, mission.spec.lootCaches)) * Math.PI * 2;
+      const radius = mission.spec.radiusMeters * 0.5;
+      const id = `${mission.spec.id}-caixa-${i}`;
+      this.lootField.spawnCache(
+        id,
+        mission.spec.x + Math.cos(angle) * radius,
+        mission.spec.z + Math.sin(angle) * radius,
+        mission.spec.lootTier,
+      );
+      mission.cacheIds.push(id);
+    }
+  }
+
+  private onMissionCompleted(mission: ActiveMission): void {
+    this.wallet.earn(mission.spec.reward);
+    this.save.stats.missionsCompleted++;
+    this.showToast(`${mission.spec.name} concluída · $${mission.spec.reward}`);
+  }
+
+  private onMissionEnded(mission: ActiveMission): void {
+    const garrison = this.missionNpcs.get(mission.spec.id);
+    if (garrison) {
+      // The fight is over; its agents go with it rather than wandering the map.
+      for (const npc of garrison) {
+        npc.dispose();
+        const index = this.npcs.indexOf(npc);
+        if (index >= 0) this.npcs.splice(index, 1);
+      }
+      this.missionNpcs.delete(mission.spec.id);
+    }
+    if (mission.status === 'expired') this.showToast(`${mission.spec.name} expirou.`);
+  }
+
+  /**
+   * Garrisons appear only once the player is close enough to matter.
+   *
+   * Spawning every mission's agents up front would put thirty NPCs on the AI
+   * budget for fights nobody is having yet.
+   */
+  private async updateMissionGarrisons(): Promise<void> {
+    const p = this.player.position;
+    for (const mission of this.director.missions) {
+      if (mission.status !== 'active') continue;
+      if (this.missionNpcs.has(mission.spec.id)) continue;
+      const distance = Math.hypot(p.x - mission.spec.x, p.z - mission.spec.z);
+      if (distance > 320) continue;
+      // Reserve the slot before awaiting, or the next tick spawns them twice.
+      this.missionNpcs.set(mission.spec.id, []);
+      const garrison = await this.spawnGarrison(mission);
+      this.missionNpcs.set(mission.spec.id, garrison);
+    }
+  }
+
+  private async spawnGarrison(mission: ActiveMission): Promise<Npc[]> {
+    const deps = {
+      physics: this.ctx.physics,
+      scene: this.ctx.render.scene,
+      ballistics: this.ballistics,
+      navigator: this.navigator,
+      cover: this.coverFinder,
+      medium: this.effects2,
+    };
+    const weapons = aiConfig.spawn.weaponsBySkill as Record<string, string[]>;
+    const list = weapons[mission.spec.enemySkill] ?? ['rifle_m4x'];
+    const squad = new Squad(100 + this.squads.length);
+    const garrison: Npc[] = [];
+
+    for (let i = 0; i < mission.spec.enemyCount; i++) {
+      const angle = (i / mission.spec.enemyCount) * Math.PI * 2;
+      const radius = mission.spec.radiusMeters * 0.6;
+      const x = mission.spec.x + Math.cos(angle) * radius;
+      const z = mission.spec.z + Math.sin(angle) * radius;
+      const ground = this.streamer.groundAt(x, z) ?? this.terrain.heightAt(x, z);
+      const npc = await Npc.spawn(
+        deps,
+        new THREE.Vector3(x, ground, z),
+        mission.spec.enemySkill as SkillLevel,
+        list[i % list.length]!,
+        i,
+      );
+      npc.missionId = mission.spec.id;
+      npc.squad = squad;
+      squad.add(npc);
+      this.npcs.push(npc);
+      garrison.push(npc);
+    }
+    this.squads.push(squad);
+    return garrison;
+  }
+
+  /** Turns freshly dead agents into lootable corpses and mission progress. */
+  private harvestTheDead(): void {
+    for (const npc of this.npcs) {
+      if (npc.isAlive || this.harvested.has(npc.id)) continue;
+      this.harvested.add(npc.id);
+      this.save.stats.kills++;
+      this.lootField.registerCorpse(`npc-${npc.id}`, npc.position, npc.skillLevel);
+      if (npc.missionId) this.director.reportKill(npc.missionId);
+    }
+  }
+
+  // ---- Interação e painéis ------------------------------------------------
+
+  private anyPanelOpen(): boolean {
+    return this.mapPanel.isOpen || this.inventoryPanel.isOpen || this.shopPanel.isOpen;
+  }
+
+  private handlePanelKeys(): void {
+    if (input.pressed('KeyM')) this.mapPanel.toggle();
+    if (input.pressed('KeyI')) this.inventoryPanel.toggle();
+    if (input.pressed('KeyL')) this.shopPanel.toggle();
+    if (input.pressed('Escape')) {
+      this.mapPanel.hide();
+      this.inventoryPanel.hide();
+      this.shopPanel.hide();
+    }
+  }
+
+  /** `E` looks for loot first, then a vehicle: the closer thing wins. */
+  private handleInteraction(): void {
+    if (this.ridingVehicle) {
+      this.exitVehicle();
+      return;
+    }
+    const loot = this.lootField.nearest(this.player.position);
+    if (loot) {
+      const result = loot.takeAll(this.inventory, this.wallet);
+      this.showToast(LootField.describe(result));
+      return;
+    }
+    const vehicle = this.vehicleInReach();
+    if (vehicle) this.enterVehicle(vehicle);
+  }
+
+  private interactionHint(): string {
+    if (this.ridingVehicle) return 'E sair do veículo';
+    const loot: LootSource | null = this.lootField.nearest(this.player.position);
+    if (loot) return `E ${loot.label}`;
+    if (this.vehicleInReach()) return 'E entrar no veículo';
+    if (this.isInSafeZone()) {
+      return this.wallet.carried > 0
+        ? `Zona segura · I para depositar $${this.wallet.carried} · L arsenal`
+        : 'Zona segura · L arsenal';
+    }
+    return '';
+  }
+
+  private showToast(text: string): void {
+    this.toast = text;
+    this.toastTimer = 3.5;
+  }
+
+  // ---- Save ---------------------------------------------------------------
+
+  private async restoreSave(): Promise<void> {
+    const loaded = await loadSave(WorldCfg.seed);
+    if (!loaded) {
+      this.showToast('Nova run. O banco começa com o saldo inicial.');
+      return;
+    }
+    this.save = loaded;
+    this.wallet.bank = loaded.bank;
+    this.wallet.carried = loaded.carried;
+    this.inventory.load(loaded.inventory);
+    for (const id of loaded.weapons) {
+      this.ownedWeapons.add(id);
+      this.loadout.addWeapon(id);
+    }
+    for (const [calibre, amount] of Object.entries(loaded.ammo)) {
+      this.loadout.pouch.setReserve(calibre, amount);
+    }
+    const [x, y, z] = loaded.position;
+    if (x !== 0 || z !== 0) {
+      await this.streamer.warmup(new THREE.Vector3(x, y, z));
+      const ground = this.streamer.groundAt(x, z);
+      this.player.respawnKeepingHealth(new THREE.Vector3(x, (ground ?? y) + 0.5, z));
+      this.player.yaw = loaded.yaw;
+    }
+    this.showToast(`Save carregado · banco $${loaded.bank}`);
+  }
+
+  private snapshot(): SaveState {
+    const p = this.player.position;
+    return {
+      ...this.save,
+      seed: WorldCfg.seed,
+      bank: this.wallet.bank,
+      carried: this.wallet.carried,
+      position: [p.x, p.y, p.z],
+      yaw: this.player.yaw,
+      inventory: this.inventory.toJSON(),
+      weapons: [...this.ownedWeapons],
+      attachments: this.save.attachments,
+      ammo: this.loadout.pouch.reserveSnapshot(),
+      stats: { ...this.save.stats, moneyEarned: this.wallet.earned },
+    };
+  }
+
+  private async persist(): Promise<void> {
+    this.save = this.snapshot();
+    await storeSave(this.save);
+  }
+
   private registerDebug(): void {
     debugOverlay.registerSection('mundo', () => {
       const p = this.player.position;
@@ -415,6 +791,14 @@ export class WorldScene implements Scene {
         this.pois.stats,
       ].join('\n');
     });
+    debugOverlay.registerSection('economia', () =>
+      [
+        `bolso $${this.wallet.carried}  banco $${this.wallet.bank}`,
+        `mochila ${this.inventory.weightKg.toFixed(1)}/${this.inventory.capacityKg.toFixed(0)} kg`,
+        `loot ${this.lootField.remaining}/${this.lootField.count} por abrir`,
+        `missões ${this.director.activeCount} ativas`,
+      ].join('\n'),
+    );
     debugOverlay.registerSection('veiculo', () =>
       this.ridingVehicle
         ? this.ridingVehicle.debugText
@@ -461,6 +845,13 @@ export class WorldScene implements Scene {
 
   fixed(dt: number): void {
     const intent = readPlayerInput();
+    if (this.anyPanelOpen()) {
+      // The world keeps running while a panel is open, but the legs do not.
+      intent.forward = 0;
+      intent.strafe = 0;
+      intent.jump = false;
+      intent.sprint = false;
+    }
     if (this.ridingVehicle) {
       // While riding, WASD drives the car instead of the legs.
       intent.forward = 0;
@@ -470,13 +861,8 @@ export class WorldScene implements Scene {
     this.player.queueIntents(intent);
     this.player.fixed(dt, intent);
 
-    if (input.pressed('KeyE')) {
-      if (this.ridingVehicle) this.exitVehicle();
-      else {
-        const near = this.vehicleInReach();
-        if (near) this.enterVehicle(near);
-      }
-    }
+    this.handlePanelKeys();
+    if (input.pressed('KeyE')) this.handleInteraction();
     this.updateDriving(dt);
     for (const vehicle of this.vehicles) {
       // A vehicle only simulates once there is ground beneath it.
@@ -492,7 +878,8 @@ export class WorldScene implements Scene {
     const weapon = this.loadout.current;
     // Firing from inside a vehicle is not implemented, so the trigger is
     // dead while riding rather than shooting from an invisible weapon.
-    const canShoot = input.locked && this.loadout.ready && !this.ridingVehicle;
+    const canShoot =
+      input.locked && this.loadout.ready && !this.ridingVehicle && !this.anyPanelOpen();
     weapon.setTrigger(input.isMouseDown(MOUSE_LEFT) && canShoot);
     if (!this.ridingVehicle) {
       if (input.pressed('KeyR')) weapon.reload();
@@ -562,6 +949,42 @@ export class WorldScene implements Scene {
       npc.update(dt, npc.position.distanceTo(this.player.position));
     }
     for (const squad of this.squads) squad.update(dt);
+
+    this.harvestTheDead();
+    this.director.update(dt, this.player.position);
+    void this.updateMissionGarrisons();
+    this.updatePlayerDeath();
+
+    // Autosave on a timer rather than on every event: the write is cheap but
+    // not free, and a run that saves twice a second stutters for nothing.
+    this.autosaveTimer -= dt;
+    if (this.autosaveTimer <= 0) {
+      this.autosaveTimer = 20;
+      void this.persist();
+    }
+    this.save.stats.secondsPlayed += dt;
+    if (this.toastTimer > 0) this.toastTimer -= dt;
+  }
+
+  /**
+   * Death costs the pocket and the bag, never the bank.
+   *
+   * That is the whole risk curve of a run: everything looted is at stake until
+   * it is deposited, and the bank is what makes a bad run survivable.
+   */
+  private updatePlayerDeath(): void {
+    if (this.player.health.alive) return;
+    const lost = this.wallet.die();
+    const bagValue = this.inventory.value;
+    this.inventory.clear();
+    this.save.stats.deaths++;
+    this.showToast(
+      lost + bagValue > 0
+        ? `Você morreu. Perdeu $${lost} e ${bagValue} em equipamento. Banco: $${this.wallet.bank}.`
+        : `Você morreu. Banco: $${this.wallet.bank}.`,
+    );
+    this.player.respawn(this.spawn);
+    void this.persist();
   }
 
   private handleWeaponSwitching(): void {
@@ -607,8 +1030,19 @@ export class WorldScene implements Scene {
     this.hud.setHint(
       this.water.isUnderwater(this.player.controller.eyePosition.y)
         ? `AR ${(this.water.breathFraction * 100).toFixed(0)}%`
-        : '',
+        : this.toastTimer > 0
+          ? this.toast
+          : this.interactionHint(),
     );
+    this.hud.setWallet(this.wallet.carried, this.wallet.bank, this.isInSafeZone());
+    this.hud.setMissions(this.director.trackerLines(this.player.position));
+    this.mapPanel.setContext({
+      playerX: this.player.position.x,
+      playerZ: this.player.position.z,
+      playerYaw: this.player.yaw,
+      missions: this.director.missions,
+      safeZone: this.safeZone,
+    });
     this.pointerHint.classList.toggle('hidden', input.locked);
 
     for (const vehicle of this.vehicles) vehicle.frame();
@@ -703,7 +1137,11 @@ export class WorldScene implements Scene {
     this.effects2.dispose();
     for (const vehicle of this.vehicles) vehicle.dispose();
     this.vehicles.length = 0;
-    for (const name of ['mundo', 'ciclo', 'player', 'arma', 'ia', 'veiculo']) {
+    this.lootField.dispose();
+    this.mapPanel.dispose();
+    this.inventoryPanel.dispose();
+    this.shopPanel.dispose();
+    for (const name of ['mundo', 'ciclo', 'player', 'arma', 'ia', 'veiculo', 'economia']) {
       debugOverlay.removeSection(name);
     }
   }

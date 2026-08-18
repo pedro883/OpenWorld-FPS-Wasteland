@@ -36,7 +36,10 @@ export class Hud {
   private readonly hotbar: HTMLDivElement;
   private readonly hotbarSlots: HTMLDivElement[] = [];
   private readonly blindEl: HTMLDivElement;
+  private readonly walletEl: HTMLDivElement;
+  private readonly missionEl: HTMLDivElement;
   private hotbarSignature = '';
+  private missionSignature = '';
 
   constructor() {
     this.root = document.createElement('div');
@@ -122,10 +125,39 @@ export class Hud {
     this.hintEl.id = 'hud-hint';
     this.root.appendChild(this.hintEl);
 
+    this.walletEl = document.createElement('div');
+    this.walletEl.id = 'hud-wallet';
+    this.root.appendChild(this.walletEl);
+
+    this.missionEl = document.createElement('div');
+    this.missionEl.id = 'hud-missions';
+    this.root.appendChild(this.missionEl);
+
     document.body.appendChild(this.root);
   }
 
   /** `spreadDegrees` opens the crosshair so recoil is legible without numbers. */
+  /** Money on hand versus banked; the safe zone is called out because that is
+   * the only place the difference can be closed. */
+  setWallet(carried: number, bank: number, inSafeZone: boolean): void {
+    this.walletEl.innerHTML =
+      `<span class="carried">$${carried}</span><span class="bank">banco $${bank}</span>` +
+      (inSafeZone ? '<span class="safe">zona segura</span>' : '');
+  }
+
+  setMissions(lines: readonly string[]): void {
+    const signature = lines.join('|');
+    if (signature === this.missionSignature) return;
+    this.missionSignature = signature;
+    this.missionEl.replaceChildren();
+    for (const line of lines) {
+      const el = document.createElement('div');
+      el.className = 'mission-line';
+      el.textContent = line;
+      this.missionEl.append(el);
+    }
+  }
+
   update(player: Player, spreadDegrees = 1.5, weapon?: Weapon): void {
     for (const zone of ZONES) {
       const frac = player.health.fraction(zone);

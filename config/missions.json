@@ -1,0 +1,116 @@
+{
+  "_comment": "Gerador de missões dinâmicas. O diretor mantém entre `minActive` e `maxActive` missões vivas; cada uma expira em `timerSeconds` e reaparece em outro lugar. A recompensa é proporcional à dificuldade: money = rewardPerDifficulty * difficulty, e o tier de loot sobe junto.",
+
+  "director": {
+    "minActive": 3,
+    "maxActive": 5,
+    "respawnDelaySeconds": 45,
+    "minSpacingMeters": 260,
+    "rewardPerDifficulty": 320,
+    "_comment_distance": "Missão longe de casa paga mais: +bônus por km de distância do ponto de partida.",
+    "distanceBonusPerKm": 90
+  },
+
+  "_comment_location": "`poi` nasce num POI do tipo pedido, `wilderness` em campo aberto longe de tudo, `road` num ponto de estrada entre dois POIs.",
+
+  "types": {
+    "outpost": {
+      "name": "Posto avançado",
+      "brief": "Base fortificada ocupada. Limpe a guarnição e saqueie o arsenal.",
+      "difficulty": 3,
+      "location": "poi",
+      "poiKinds": ["militar", "industrial"],
+      "radiusMeters": 55,
+      "timerSeconds": 900,
+      "enemies": { "count": [5, 7], "skill": "regular" },
+      "objective": "eliminate",
+      "lootTier": "militar",
+      "lootCaches": 3
+    },
+
+    "hvt": {
+      "name": "Alvo de alto valor",
+      "brief": "Um oficial se deslocou para a região com escolta veterana. Elimine-o.",
+      "difficulty": 4,
+      "location": "poi",
+      "poiKinds": ["militar", "vila", "industrial"],
+      "radiusMeters": 40,
+      "timerSeconds": 720,
+      "enemies": { "count": [4, 6], "skill": "veteran" },
+      "objective": "assassinate",
+      "lootTier": "militar",
+      "lootCaches": 1
+    },
+
+    "convoy": {
+      "name": "Comboio",
+      "brief": "Um comboio escoltado cruza a estrada. Destrua a escolta e tome a carga.",
+      "difficulty": 3,
+      "location": "road",
+      "radiusMeters": 45,
+      "timerSeconds": 600,
+      "enemies": { "count": [4, 6], "skill": "regular" },
+      "objective": "eliminate",
+      "lootTier": "militar",
+      "lootCaches": 2,
+      "vehicles": 2
+    },
+
+    "supplyDrop": {
+      "name": "Queda de suprimentos",
+      "brief": "Uma caixa desceu de paraquedas. Chegue antes da IA e leve o que puder.",
+      "difficulty": 1,
+      "location": "wilderness",
+      "radiusMeters": 30,
+      "timerSeconds": 420,
+      "enemies": { "count": [2, 3], "skill": "recruit" },
+      "objective": "secure",
+      "lootTier": "policial",
+      "lootCaches": 2
+    },
+
+    "sabotage": {
+      "name": "Sabotagem",
+      "brief": "Plante a carga no objetivo e sobreviva até detonar.",
+      "difficulty": 4,
+      "location": "poi",
+      "poiKinds": ["industrial", "militar"],
+      "radiusMeters": 45,
+      "timerSeconds": 780,
+      "enemies": { "count": [4, 6], "skill": "regular" },
+      "objective": "plant",
+      "plantSeconds": 90,
+      "lootTier": "militar",
+      "lootCaches": 1
+    },
+
+    "rescue": {
+      "name": "Resgate",
+      "brief": "Há um prisioneiro no local. Tire-o de lá e leve-o à zona segura.",
+      "difficulty": 3,
+      "location": "poi",
+      "poiKinds": ["vila", "industrial"],
+      "radiusMeters": 40,
+      "timerSeconds": 900,
+      "enemies": { "count": [3, 5], "skill": "regular" },
+      "objective": "escort",
+      "lootTier": "policial",
+      "lootCaches": 1
+    },
+
+    "sector": {
+      "name": "Captura de setor",
+      "brief": "Segure a área contra as ondas até o setor ser seu.",
+      "difficulty": 5,
+      "location": "wilderness",
+      "radiusMeters": 50,
+      "timerSeconds": 960,
+      "holdSeconds": 180,
+      "enemies": { "count": [3, 4], "skill": "regular" },
+      "waves": 3,
+      "objective": "hold",
+      "lootTier": "militar",
+      "lootCaches": 2
+    }
+  }
+}

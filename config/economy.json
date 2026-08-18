@@ -1,0 +1,88 @@
+{
+  "_comment": "Dinheiro e loja. O que está no bolso (`carried`) se perde ao morrer; o banco não. Depositar só acontece na zona segura, então voltar vivo com o saque é a decisão que o jogo cobra. Vender rende `sellFraction` do valor do item.",
+
+  "startingBank": 400,
+  "startingCarried": 0,
+  "sellFraction": 0.55,
+
+  "_comment_safeZone": "POI onde ficam o arsenal e o banco. `radiusMeters` é um piso: a zona sempre cobre o POI inteiro, senão o jogador nasce na borda da vila e fica de fora dela.",
+  "safeZone": { "poiKind": "vila", "radiusMeters": 45 },
+
+  "_comment_deposit": "Taxa cobrada ao depositar, para o banco não ser gratuito demais.",
+  "depositFeeFraction": 0.0,
+
+  "weaponPrices": {
+    "pistol_px9": 180,
+    "pistol_px9s": 420,
+    "smg_vibora": 620,
+    "smg_vibora_s": 980,
+    "carbine_falcao": 760,
+    "rifle_m4x": 1250,
+    "rifle_m4x_gl": 2100,
+    "rifle_lince": 1480,
+    "marksman_corvo": 1900,
+    "sniper_tr8": 2600,
+    "shotgun_brecha12": 700,
+    "shotgun_curta": 540,
+    "lmg_touro": 2400,
+    "launcher_rpx": 3200,
+    "flamer_salamandra": 2000,
+    "grenade_frag": 120,
+    "grenade_smoke": 70,
+    "grenade_flash": 90,
+    "knife_lamina": 60
+  },
+
+  "vehiclePrices": {
+    "hatch": 1400,
+    "pickup": 2600,
+    "buggy": 2200
+  },
+
+  "_comment_stock": "O que o arsenal oferece. Armas e veículos vêm das tabelas acima; os itens saem do catálogo com o preço de `value`.",
+  "stock": {
+    "weapons": [
+      "pistol_px9",
+      "pistol_px9s",
+      "smg_vibora",
+      "carbine_falcao",
+      "rifle_m4x",
+      "rifle_lince",
+      "marksman_corvo",
+      "sniper_tr8",
+      "shotgun_brecha12",
+      "lmg_touro",
+      "launcher_rpx",
+      "grenade_frag",
+      "grenade_smoke",
+      "grenade_flash"
+    ],
+    "items": [
+      "ammo_9mm",
+      "ammo_556",
+      "ammo_762",
+      "ammo_12g",
+      "ammo_40mm",
+      "ammo_rocket",
+      "bandage",
+      "medkit",
+      "backpack_small",
+      "backpack_large",
+      "vest_light",
+      "vest_heavy",
+      "helmet",
+      "jerrycan",
+      "repair_kit",
+      "optic_reddot",
+      "optic_scope4x",
+      "optic_scope8x",
+      "muzzle_suppressor",
+      "muzzle_compensator",
+      "mag_extended",
+      "mag_quick",
+      "grip_vertical",
+      "stock_heavy"
+    ],
+    "vehicles": ["hatch", "pickup", "buggy"]
+  }
+}

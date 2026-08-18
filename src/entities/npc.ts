@@ -123,6 +123,10 @@ export class Npc implements Damageable, SquadMember {
   private readonly pouch = new AmmoPouch();
   private readonly tree: Node;
   private readonly skill: SkillDef;
+  /** Skill tier, which is also the tier of loot the corpse carries. */
+  readonly skillLevel: SkillLevel;
+  /** Set when this agent was spawned as part of a mission's garrison. */
+  missionId: string | null = null;
 
   private animator: CharacterAnimator | null = null;
 
@@ -158,6 +162,7 @@ export class Npc implements Damageable, SquadMember {
     deps.scene.add(this.root);
 
     this.skill = SKILLS[skillLevel];
+    this.skillLevel = skillLevel;
     this.perception = new Perception(
       deps.physics,
       this.skill.detectionMultiplier,

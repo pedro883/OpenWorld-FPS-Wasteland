@@ -40,6 +40,19 @@ export class Loadout {
     }
   }
 
+  /**
+   * Adds a weapon bought or found, unless it is already carried.
+   *
+   * Returns the slot index so the caller can switch to it; -1 when the weapon
+   * was already there.
+   */
+  addWeapon(id: string): number {
+    if (this.slots.some((slot) => slot.weapon.id === id)) return -1;
+    const def = weaponDef(id);
+    this.slots.push({ slot: def.slot, weapon: new Weapon(id, this.ballistics, this.owner, this.pouch) });
+    return this.slots.length - 1;
+  }
+
   get current(): Weapon {
     return this.slots[this.index]!.weapon;
   }

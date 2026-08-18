@@ -14,7 +14,8 @@ como stub visível, nunca como TODO silencioso.
 | 4. Mundo | ✅ concluída |
 | 5. IA | ✅ concluída |
 | 6. Veículos | ✅ concluída |
-| 7–9 | pendentes |
+| 7. Missões + loot + economia | ✅ concluída |
+| 8–9 | pendentes |
 
 ---
 
@@ -706,3 +707,78 @@ pack anterior tinha —, então o inimigo agacha mas não deita; os acessórios 
 pack (capacete, mochila, colete militares) estão convertíveis mas não foram
 ligados; e `character-large-male` e `character-large-female` saem do zip com a
 mesma malha, o que parece ser do pack e não da conversão.
+
+---
+
+## Fase 7 — Missões, loot e economia ✅
+
+**Entregue**
+
+- **Itens e mochila por peso** (`config/items.json`, `entities/inventory.ts`). 31 itens:
+  munição por calibre, bandagem e kit médico, mochilas que aumentam a carga,
+  coletes e capacete com nível de proteção, jerrican, kit de reparo, gazua, os
+  nove acessórios de arma e itens de valor. O limite é **peso**, não número de
+  espaços — um jerrican são 15,5 kg, então levar combustível custa a munição que
+  você não trouxe. A mochila entrega **parcialmente**: um contêiner com 40
+  cartuchos quando só cabem 10 passa os 10 e deixa o resto, em vez de recusar a
+  pilha inteira.
+- **Tabelas de loot por tier** (`config/loot.json`, `loot/lootTable.ts`) — civil,
+  policial e militar, com sorteio ponderado. Cada contêiner rola a partir de uma
+  semente derivada do **próprio id**, então ele guarda o que guarda: reabrir ou
+  recarregar o save não re-sorteia para algo melhor.
+- **Contêineres e corpos** (`entities/lootContainer.ts`) — 30 contêineres
+  espalhados pelos POIs conforme o tier da área, mais caixas de missão, mais o
+  corpo de todo inimigo que cai (o tier vem da perícia dele). Tudo responde ao
+  mesmo `E`, com o mais próximo ganhando; um contêiner esvaziado escurece.
+- **Economia com banco** (`economy/wallet.ts`, `economy/shop.ts`) — dinheiro no
+  bolso e dinheiro no banco. **Morrer leva o bolso e a mochila, nunca o banco.**
+  Depositar só acontece na zona segura, que é o que transforma "voltar vivo" numa
+  decisão em vez de uma formalidade.
+- **Arsenal** — compra de armas, equipamento e veículos, e venda do saque por 55%
+  do valor. A ordem das checagens importa: nada é cobrado antes de se saber que
+  cabe, então mochila cheia não engole o dinheiro.
+- **Gerador de missões** (`missions/`) — **7 tipos** (a spec pede 5): posto
+  avançado, alvo de alto valor, comboio, queda de suprimentos, sabotagem, resgate
+  e captura de setor. O diretor mantém 3 a 5 no quadro, cada uma expira e reaparece
+  em outro lugar, e a recompensa sobe com a dificuldade **e com a distância de
+  casa**. As guarnições só nascem quando o jogador chega a 320 m — trinta NPCs no
+  orçamento de IA para brigas que ninguém está tendo seria desperdício.
+- **Save em IndexedDB** (`save/`) — banco, bolso, mochila, armas compradas,
+  munição por calibre, posição e estatísticas, gravados a cada 20 s e na morte.
+- **UI** — mapa em tela cheia (`M`) com o relevo desenhado a partir da própria
+  função de altura, estradas, POIs, círculos de missão com o prêmio, zona segura e
+  waypoint clicável; mochila (`I`) com peso, depósito e uso de consumíveis;
+  arsenal (`L`) com compra e venda.
+
+**Aceite verificado — o laço fechado que a spec pede**
+
+| | |
+|---|---|
+| Saquear | contêiner rendeu $18 e 2 itens; ficou vazio |
+| Cumprir | eliminar a guarnição fechou a missão |
+| Receber | $1286 caíram no bolso |
+| Depositar | $1304 → banco $1704, só dentro da zona segura |
+| Comprar | SMG por $620 entrou no loadout; medkit na mochila |
+| Salvar + recarregar | após F5: banco $1014, a SMG no loadout, 3,06 kg na mochila, 1 missão contabilizada |
+
+**Defeito encontrado no teste**
+
+A zona segura era um disco de 45 m no centro da vila, mas o jogador **nasce na
+borda**, a 66 m do centro. Ou seja: começava e renascia *fora* dela, com o
+arsenal recusando atendimento e sem nada na tela explicando por quê. A zona agora
+cobre o POI inteiro, e o raio do config virou um piso em vez de um valor fixo.
+
+**Testes** — 121 no total, 55 novos nesta fase: gerador determinístico, tabelas de
+loot (todo item citado existe no catálogo, o mesmo contêiner sempre rola igual,
+militar rende mais que civil), mochila por peso, serialização do save (recusa o
+que não é save, recusa versão futura, preenche o que falta em vez de perder a run,
+descarta item retirado do catálogo), carteira e loja, gerador de missões (7 tipos,
+recompensa por dificuldade e distância, comboio cai na estrada, missões espalhadas)
+e o diretor (expira, repõe, conta abates, progresso só corre dentro do círculo).
+
+**Fora do escopo desta fase**
+
+Inventário arrastar-e-soltar (a mochila é lista com botões), fome e sede — a spec
+as marca como opcionais por config —, e as missões de escolta e sabotagem existem
+no gerador com objetivo e temporizador, mas ainda não têm o NPC prisioneiro nem a
+carga plantável como entidades no mundo: hoje resolvem pelo tempo dentro da área.

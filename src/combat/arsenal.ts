@@ -195,6 +195,17 @@ export class AmmoPouch {
     }
   }
 
+  /** Reserve rounds per calibre, for the save. */
+  reserveSnapshot(): Record<string, number> {
+    return Object.fromEntries(this.reserves);
+  }
+
+  /** Restores a saved reserve, ignoring calibres that no longer exist. */
+  setReserve(ammo: string, amount: number): void {
+    if (!this.reserves.has(ammo)) return;
+    this.reserves.set(ammo, Math.max(0, Math.floor(amount)));
+  }
+
   reserve(def: WeaponDef): number {
     if (def.carried !== null) return this.carried.get(def.id) ?? 0;
     return this.reserves.get(def.ammo) ?? 0;

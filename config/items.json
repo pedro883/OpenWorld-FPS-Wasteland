@@ -1,0 +1,42 @@
+{
+  "_comment": "Catálogo de itens. weightKg é o peso de UMA unidade; value é o preço de compra em dinheiro e a venda sai por economy.sellFraction. stack é quantas unidades cabem numa pilha. Munição carrega `ammo` (calibre) e `rounds` (quantos cartuchos a pilha rende).",
+
+  "items": {
+    "ammo_9mm": { "name": "Munição 9 mm", "category": "ammo", "weightKg": 0.35, "value": 12, "stack": 12, "ammo": "9mm", "rounds": 30 },
+    "ammo_556": { "name": "Munição 5,56", "category": "ammo", "weightKg": 0.42, "value": 20, "stack": 12, "ammo": "5.56", "rounds": 30 },
+    "ammo_762": { "name": "Munição 7,62", "category": "ammo", "weightKg": 0.5, "value": 26, "stack": 12, "ammo": "7.62", "rounds": 20 },
+    "ammo_12g": { "name": "Cartucho 12", "category": "ammo", "weightKg": 0.4, "value": 18, "stack": 12, "ammo": "12g", "rounds": 10 },
+    "ammo_40mm": { "name": "Granada 40 mm", "category": "ammo", "weightKg": 0.9, "value": 90, "stack": 6, "ammo": "40mm", "rounds": 2 },
+    "ammo_rocket": { "name": "Foguete", "category": "ammo", "weightKg": 3.2, "value": 220, "stack": 3, "ammo": "rocket", "rounds": 1 },
+
+    "bandage": { "name": "Bandagem", "category": "medical", "weightKg": 0.12, "value": 15, "stack": 8, "stopsBleeding": true, "healsZone": 20 },
+    "medkit": { "name": "Kit médico", "category": "medical", "weightKg": 1.1, "value": 70, "stack": 3, "stopsBleeding": true, "healsZone": 100 },
+    "ration": { "name": "Ração", "category": "medical", "weightKg": 0.4, "value": 10, "stack": 6, "healsZone": 5 },
+    "water": { "name": "Cantil", "category": "medical", "weightKg": 0.6, "value": 8, "stack": 4, "healsZone": 3 },
+
+    "backpack_small": { "name": "Mochila leve", "category": "gear", "weightKg": 1.2, "value": 120, "stack": 1, "carryBonusKg": 8 },
+    "backpack_large": { "name": "Mochila de assalto", "category": "gear", "weightKg": 2.4, "value": 300, "stack": 1, "carryBonusKg": 16 },
+    "vest_light": { "name": "Colete leve", "category": "gear", "weightKg": 3.0, "value": 200, "stack": 1, "armour": 0.25 },
+    "vest_heavy": { "name": "Colete pesado", "category": "gear", "weightKg": 7.5, "value": 520, "stack": 1, "armour": 0.45 },
+    "helmet": { "name": "Capacete", "category": "gear", "weightKg": 1.4, "value": 180, "stack": 1, "armour": 0.35, "armourZones": ["head"] },
+
+    "jerrycan": { "name": "Jerrican", "category": "tool", "weightKg": 15.5, "value": 40, "stack": 2, "fuelLitres": 20 },
+    "repair_kit": { "name": "Kit de reparo", "category": "tool", "weightKg": 2.5, "value": 90, "stack": 2, "repairs": 60 },
+    "lockpick": { "name": "Gazua", "category": "tool", "weightKg": 0.2, "value": 45, "stack": 4, "opensLocked": true },
+
+    "optic_reddot": { "name": "Mira Red-Dot", "category": "attachment", "weightKg": 0.3, "value": 140, "stack": 1, "attachment": "optic_reddot" },
+    "optic_scope4x": { "name": "Luneta 4x", "category": "attachment", "weightKg": 0.6, "value": 260, "stack": 1, "attachment": "optic_scope4x" },
+    "optic_scope8x": { "name": "Luneta 8x", "category": "attachment", "weightKg": 0.9, "value": 420, "stack": 1, "attachment": "optic_scope8x" },
+    "muzzle_suppressor": { "name": "Supressor", "category": "attachment", "weightKg": 0.5, "value": 380, "stack": 1, "attachment": "muzzle_suppressor" },
+    "muzzle_compensator": { "name": "Compensador", "category": "attachment", "weightKg": 0.25, "value": 160, "stack": 1, "attachment": "muzzle_compensator" },
+    "mag_extended": { "name": "Carregador estendido", "category": "attachment", "weightKg": 0.35, "value": 190, "stack": 1, "attachment": "mag_extended" },
+    "mag_quick": { "name": "Carregador rápido", "category": "attachment", "weightKg": 0.15, "value": 130, "stack": 1, "attachment": "mag_quick" },
+    "grip_vertical": { "name": "Empunhadura vertical", "category": "attachment", "weightKg": 0.2, "value": 150, "stack": 1, "attachment": "grip_vertical" },
+    "stock_heavy": { "name": "Coronha pesada", "category": "attachment", "weightKg": 0.7, "value": 170, "stack": 1, "attachment": "stock_heavy" },
+
+    "scrap": { "name": "Sucata", "category": "valuable", "weightKg": 0.8, "value": 15, "stack": 20 },
+    "electronics": { "name": "Componentes", "category": "valuable", "weightKg": 1.1, "value": 60, "stack": 10 },
+    "gold_watch": { "name": "Relógio de ouro", "category": "valuable", "weightKg": 0.1, "value": 250, "stack": 5 },
+    "intel": { "name": "Documentos", "category": "valuable", "weightKg": 0.05, "value": 400, "stack": 5 }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "_comment": "Tabelas de loot por tier de área. `rolls` é quantas linhas cada contêiner sorteia; cada linha escolhe uma entrada com probabilidade proporcional a `weight` e depois sorteia a quantidade entre min e max. `money` é o dinheiro solto. Peso 0 desliga uma linha sem apagá-la.",
+
+  "tiers": {
+    "civil": {
+      "name": "Civil",
+      "rolls": [2, 4],
+      "money": [10, 70],
+      "entries": [
+        { "item": "scrap", "weight": 30, "min": 1, "max": 4 },
+        { "item": "bandage", "weight": 22, "min": 1, "max": 3 },
+        { "item": "ration", "weight": 18, "min": 1, "max": 2 },
+        { "item": "water", "weight": 18, "min": 1, "max": 2 },
+        { "item": "ammo_9mm", "weight": 14, "min": 1, "max": 2 },
+        { "item": "ammo_12g", "weight": 10, "min": 1, "max": 2 },
+        { "item": "electronics", "weight": 8, "min": 1, "max": 2 },
+        { "item": "backpack_small", "weight": 5, "min": 1, "max": 1 },
+        { "item": "jerrycan", "weight": 5, "min": 1, "max": 1 },
+        { "item": "repair_kit", "weight": 4, "min": 1, "max": 1 },
+        { "item": "gold_watch", "weight": 2, "min": 1, "max": 1 }
+      ]
+    },
+
+    "policial": {
+      "name": "Policial",
+      "rolls": [2, 4],
+      "money": [40, 160],
+      "entries": [
+        { "item": "ammo_9mm", "weight": 26, "min": 2, "max": 4 },
+        { "item": "ammo_12g", "weight": 20, "min": 2, "max": 4 },
+        { "item": "ammo_556", "weight": 16, "min": 1, "max": 3 },
+        { "item": "bandage", "weight": 16, "min": 2, "max": 4 },
+        { "item": "medkit", "weight": 10, "min": 1, "max": 1 },
+        { "item": "vest_light", "weight": 9, "min": 1, "max": 1 },
+        { "item": "optic_reddot", "weight": 8, "min": 1, "max": 1 },
+        { "item": "lockpick", "weight": 8, "min": 1, "max": 2 },
+        { "item": "mag_quick", "weight": 6, "min": 1, "max": 1 },
+        { "item": "helmet", "weight": 5, "min": 1, "max": 1 },
+        { "item": "electronics", "weight": 5, "min": 1, "max": 3 }
+      ]
+    },
+
+    "militar": {
+      "name": "Militar",
+      "rolls": [3, 5],
+      "money": [90, 320],
+      "entries": [
+        { "item": "ammo_556", "weight": 24, "min": 2, "max": 5 },
+        { "item": "ammo_762", "weight": 22, "min": 2, "max": 4 },
+        { "item": "medkit", "weight": 14, "min": 1, "max": 2 },
+        { "item": "vest_heavy", "weight": 9, "min": 1, "max": 1 },
+        { "item": "helmet", "weight": 9, "min": 1, "max": 1 },
+        { "item": "backpack_large", "weight": 8, "min": 1, "max": 1 },
+        { "item": "optic_scope4x", "weight": 8, "min": 1, "max": 1 },
+        { "item": "muzzle_suppressor", "weight": 6, "min": 1, "max": 1 },
+        { "item": "mag_extended", "weight": 6, "min": 1, "max": 1 },
+        { "item": "ammo_40mm", "weight": 5, "min": 1, "max": 2 },
+        { "item": "optic_scope8x", "weight": 4, "min": 1, "max": 1 },
+        { "item": "ammo_rocket", "weight": 3, "min": 1, "max": 1 },
+        { "item": "intel", "weight": 3, "min": 1, "max": 1 }
+      ]
+    }
+  },
+
+  "_comment_corpse": "Corpo de NPC: menos linhas que um contêiner, e o tier vem da perícia do inimigo.",
+  "corpse": {
+    "rolls": [1, 2],
+    "money": [5, 45],
+    "tierBySkill": {
+      "recruit": "civil",
+      "regular": "policial",
+      "veteran": "militar",
+      "specops": "militar"
+    }
+  },
+
+  "_comment_containers": "Quantos contêineres nascem em cada POI e com que tier.",
+  "containers": {
+    "vila": { "tier": "civil", "count": 9 },
+    "militar": { "tier": "militar", "count": 11 },
+    "industrial": { "tier": "policial", "count": 10 }
+  },
+
+  "_comment_models": "Modelos Kenney usados como contêiner, sorteados por tier.",
+  "models": {
+    "civil": ["survival-kit/box", "survival-kit/box-large", "survival-kit/barrel"],
+    "policial": ["survival-kit/box-large", "prototype-kit/crate", "survival-kit/chest"],
+    "militar": ["prototype-kit/crate", "blaster-kit/crate-medium", "survival-kit/chest"]
+  }
+}

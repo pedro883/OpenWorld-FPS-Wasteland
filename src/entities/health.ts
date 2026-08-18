@@ -68,6 +68,36 @@ export class ZoneHealth {
     return z.max > 0 ? z.hp / z.max : 0;
   }
 
+  /**
+   * Treats the worst wound, and optionally stops the bleeding.
+   *
+   * Healing the *worst* zone rather than spreading the points around is what
+   * makes a single bandage feel like it did something: a shattered leg is what
+   * the player notices, not four percent spread over six limbs.
+   */
+  heal(amount: number, stopBleeding: boolean): boolean {
+    let treated = false;
+    if (stopBleeding) {
+      for (const zone of ZONES) {
+        if (this.zones[zone].bleeding) {
+          this.zones[zone].bleeding = false;
+          treated = true;
+        }
+      }
+    }
+    let worst: Zone | null = null;
+    for (const zone of ZONES) {
+      if (this.zones[zone].hp >= this.zones[zone].max) continue;
+      if (!worst || this.fraction(zone) < this.fraction(worst)) worst = zone;
+    }
+    if (worst) {
+      const state = this.zones[worst];
+      state.hp = Math.min(state.max, state.hp + amount);
+      treated = true;
+    }
+    return treated;
+  }
+
   /** Overall condition, driven by the lethal zones. */
   get vitality(): number {
     return Math.min(this.fraction('head'), this.fraction('torso'));
